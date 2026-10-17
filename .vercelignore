@@ -1,0 +1,3 @@
+# Ignore local printer microservice from Vercel cloud build
+# (The print server runs locally on the cashier's PC at localhost:5000 connected to the USB printer)
+print-server/
