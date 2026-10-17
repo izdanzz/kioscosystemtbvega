@@ -9,19 +9,21 @@ import {
   Clock, 
   DollarSign, 
   RefreshCw, 
-  Store,
+  Store, 
   Volume2, 
-  Sparkles,
-  Check,
-  X,
-  Plus,
-  Package,
-  Edit2,
-  Trash2,
-  Search,
-  Eye,
-  EyeOff,
-  Layers
+  Check, 
+  X, 
+  Plus, 
+  Package, 
+  Edit2, 
+  Trash2, 
+  Search, 
+  Eye, 
+  EyeOff, 
+  Banknote, 
+  CreditCard, 
+  FileText,
+  AlertCircle
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { playChimeSound } from "@/lib/sound";
@@ -35,14 +37,22 @@ export default function PanelOperador() {
   const [sonidoHabilitado, setSonidoHabilitado] = useState(true);
   const [printServerOnline, setPrintServerOnline] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState("pendiente");
-  const [procesandoId, setProcesandoId] = useState(null);
   const [notificacionAlerta, setNotificacionAlerta] = useState(null);
+
+  // Modal de Cobro & Vuelto / Fiado
+  const [pedidoCobrando, setPedidoCobrando] = useState(null);
+  const [metodoCobro, setMetodoCobro] = useState("efectivo"); // 'efectivo' | 'transferencia' | 'fiado'
+  const [montoEntregado, setMontoEntregado] = useState("");
+  const [notaCobro, setNotaCobro] = useState("");
+  const [cobrandoProceso, setCobrandoProceso] = useState(false);
+
+  // Ticket para imprimir en pantalla / térmico
   const [ticketParaImprimir, setTicketParaImprimir] = useState(null);
 
   // Estados para Inventario
   const [busquedaInv, setBusquedaInv] = useState("");
   const [categoriaFiltroInv, setCategoriaFiltroInv] = useState("todas");
-  const [modalProducto, setModalProducto] = useState(null); // null | { id?: ..., nombre: '', ... }
+  const [modalProducto, setModalProducto] = useState(null);
   const [guardandoProd, setGuardandoProd] = useState(false);
 
   useEffect(() => {
@@ -55,13 +65,12 @@ export default function PanelOperador() {
     let canal = null;
     if (isSupabaseConfigured()) {
       canal = supabase
-        .channel("operador_realtime_channel")
+        .channel("operador_realtime_channel_v3")
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "pedidos" },
           (payload) => {
             dispararAlertaNuevoPedido(payload.new);
-            // Cargar con pequeño retardo para asegurar que los items de detalle_pedido ya se guardaron
             setTimeout(cargarPedidos, 500);
             setTimeout(cargarPedidos, 1500);
           }
@@ -153,33 +162,56 @@ export default function PanelOperador() {
   };
 
   // ===============================
-  // ACCIONES DE PEDIDOS
+  // FLUJO DE COBRO & VUELTO & FIADO
   // ===============================
-  const cobrarEImprimir = async (pedido) => {
-    setProcesandoId(pedido.id);
+  const abrirModalCobro = (pedido) => {
+    setPedidoCobrando(pedido);
+    setMetodoCobro(pedido.metodo_pago || "efectivo");
+    setMontoEntregado(String(pedido.total || ""));
+    setNotaCobro(pedido.notas || "");
+  };
+
+  const confirmarCobroFinal = async () => {
+    if (!pedidoCobrando) return;
+    setCobrandoProceso(true);
+
+    const total = Number(pedidoCobrando.total) || 0;
+    const entregado = parseFloat(montoEntregado) || total;
+    const vuelto = Math.max(0, entregado - total);
 
     try {
       if (isSupabaseConfigured()) {
         const { error } = await supabase
           .from("pedidos")
-          .update({ estado: "cobrado", actualizado_en: new Date().toISOString() })
-          .eq("id", pedido.id);
+          .update({
+            estado: "cobrado",
+            metodo_pago: metodoCobro,
+            notas: notaCobro.trim() || null,
+            actualizado_en: new Date().toISOString()
+          })
+          .eq("id", pedidoCobrando.id);
 
         if (error) throw error;
       }
 
       setPedidos((prev) =>
-        prev.map((p) => (p.id === pedido.id ? { ...p, estado: "cobrado" } : p))
+        prev.map((p) =>
+          p.id === pedidoCobrando.id
+            ? { ...p, estado: "cobrado", metodo_pago: metodoCobro, notas: notaCobro }
+            : p
+        )
       );
 
-      // Preparar datos para imprimir
       const ticketInfo = {
-        id: pedido.id,
-        cliente: pedido.cliente_nombre,
-        total: pedido.total,
-        metodo_pago: pedido.metodo_pago,
-        fecha: new Date(pedido.creado_en).toLocaleString(),
-        items: pedido.detalle_pedido?.map((d) => ({
+        id: pedidoCobrando.id,
+        cliente: pedidoCobrando.cliente_nombre,
+        total: total,
+        metodo_pago: metodoCobro,
+        monto_recibido: metodoCobro === "efectivo" ? entregado : null,
+        vuelto: metodoCobro === "efectivo" ? vuelto : null,
+        notas: notaCobro.trim(),
+        fecha: new Date(pedidoCobrando.creado_en).toLocaleString(),
+        items: pedidoCobrando.detalle_pedido?.map((d) => ({
           nombre: d.productos?.nombre || "Producto",
           cantidad: d.cantidad,
           precio_unitario: d.precio_unitario,
@@ -188,17 +220,21 @@ export default function PanelOperador() {
       };
 
       setTicketParaImprimir(ticketInfo);
+      setPedidoCobrando(null);
 
-      // Intento enviar al agente local de impresión
+      // Enviar a print-server local
       try {
         await fetch("http://localhost:5000/imprimir", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            pedidoId: pedido.id,
-            cliente_nombre: pedido.cliente_nombre,
-            total: pedido.total,
-            metodo_pago: pedido.metodo_pago,
+            pedidoId: ticketInfo.id,
+            cliente_nombre: ticketInfo.cliente,
+            total: ticketInfo.total,
+            metodo_pago: ticketInfo.metodo_pago,
+            monto_recibido: ticketInfo.monto_recibido,
+            vuelto: ticketInfo.vuelto,
+            notas: ticketInfo.notas,
             items: ticketInfo.items
           })
         });
@@ -206,10 +242,9 @@ export default function PanelOperador() {
         console.warn("Agente local 5000 offline o no detectado:", e);
       }
     } catch (err) {
-      console.error("Error al cobrar pedido:", err);
-      alert("Error: " + err.message);
+      alert("Error al procesar cobro: " + err.message);
     } finally {
-      setProcesandoId(null);
+      setCobrandoProceso(false);
     }
   };
 
@@ -239,7 +274,7 @@ export default function PanelOperador() {
   };
 
   // ===============================
-  // ACCIONES DE INVENTARIO
+  // GESTIÓN DE INVENTARIO
   // ===============================
   const modificarStockRapido = async (productoId, delta) => {
     const prod = productos.find((p) => p.id === productoId);
@@ -247,7 +282,6 @@ export default function PanelOperador() {
 
     const nuevoStock = Math.max(0, (prod.stock || 0) + delta);
 
-    // Actualización optimista local
     setProductos((prev) =>
       prev.map((p) => (p.id === productoId ? { ...p, stock: nuevoStock } : p))
     );
@@ -301,14 +335,12 @@ export default function PanelOperador() {
       };
 
       if (modalProducto.id) {
-        // Editar existente
         const { error } = await supabase
           .from("productos")
           .update(payload)
           .eq("id", modalProducto.id);
         if (error) throw error;
       } else {
-        // Crear nuevo
         const { error } = await supabase
           .from("productos")
           .insert(payload);
@@ -336,7 +368,7 @@ export default function PanelOperador() {
     }
   };
 
-  // Métricas
+  // Cálculos
   const pendientesCount = pedidos.filter((p) => p.estado === "pendiente").length;
   const cobradosHoy = pedidos.filter((p) => p.estado === "cobrado");
   const totalRecaudado = cobradosHoy.reduce((acc, p) => acc + Number(p.total), 0);
@@ -356,13 +388,16 @@ export default function PanelOperador() {
     return coincideCat && coincideBusq;
   });
 
+  // Vuelto calculado para el modal
+  const vueltoCalculado = pedidoCobrando
+    ? (parseFloat(montoEntregado) || 0) - Number(pedidoCobrando.total || 0)
+    : 0;
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between font-sans">
       <div className="max-w-6xl mx-auto w-full p-4 md:p-8">
         
-        {/* =========================================
-            BARRA SUPERIOR MINIMALISTA
-            ========================================= */}
+        {/* Cabecera */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-200 gap-4">
           <div className="flex items-center gap-3">
             <div className="h-11 w-11 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-xs">
@@ -379,7 +414,6 @@ export default function PanelOperador() {
             </div>
           </div>
 
-          {/* Navegación por Pestañas */}
           <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               onClick={() => setPestanaActiva("ordenes")}
@@ -405,7 +439,6 @@ export default function PanelOperador() {
             </button>
           </div>
 
-          {/* Controles de Alarma & Print Server */}
           <div className="flex items-center gap-2 text-xs">
             <button
               onClick={() => setSonidoHabilitado(!sonidoHabilitado)}
@@ -428,7 +461,7 @@ export default function PanelOperador() {
           </div>
         </header>
 
-        {/* Notificación de Nuevo Pedido */}
+        {/* Notificación de Alerta */}
         {notificacionAlerta && (
           <div className="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between shadow-xs">
             <div className="flex items-center gap-2.5">
@@ -455,7 +488,7 @@ export default function PanelOperador() {
         {pestanaActiva === "ordenes" && (
           <div className="mt-6 space-y-6">
             
-            {/* Métricas del Día */}
+            {/* Métricas */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between">
                 <div>
@@ -555,7 +588,7 @@ export default function PanelOperador() {
                 pedidosFiltrados.map((pedido) => {
                   const esPendiente = pedido.estado === "pendiente";
                   const esCobrado = pedido.estado === "cobrado";
-                  const estaProcesando = procesandoId === pedido.id;
+                  const esFiado = pedido.metodo_pago === "fiado";
 
                   return (
                     <div
@@ -580,17 +613,21 @@ export default function PanelOperador() {
                             className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
                               esPendiente
                                 ? "bg-amber-100 text-amber-800"
+                                : esFiado
+                                ? "bg-purple-100 text-purple-800 font-extrabold"
                                 : esCobrado
                                 ? "bg-emerald-100 text-emerald-800"
                                 : "bg-red-100 text-red-800"
                             }`}
                           >
-                            {pedido.estado}
+                            {esFiado ? "FIADO" : pedido.estado}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-xs text-slate-500 pb-2 mb-2 border-b border-slate-100">
-                          <span className="font-semibold uppercase text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">
+                          <span className={`font-semibold uppercase text-[10px] px-1.5 py-0.5 rounded ${
+                            esFiado ? "bg-purple-50 text-purple-700 font-bold" : "bg-slate-100 text-slate-700"
+                          }`}>
                             {pedido.metodo_pago}
                           </span>
                           <span className="text-[11px]">
@@ -633,12 +670,11 @@ export default function PanelOperador() {
                         {esPendiente ? (
                           <div className="space-y-1.5">
                             <button
-                              onClick={() => cobrarEImprimir(pedido)}
-                              disabled={estaProcesando}
-                              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95 disabled:opacity-50"
+                              onClick={() => abrirModalCobro(pedido)}
+                              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95"
                             >
                               <Printer className="h-4 w-4" />
-                              <span>COBRAR E IMPRIMIR</span>
+                              <span>COBRAR / FIADO / IMPRIMIR</span>
                             </button>
                             <button
                               onClick={() => cancelarPedido(pedido.id)}
@@ -653,10 +689,10 @@ export default function PanelOperador() {
                               <Check className="h-3.5 w-3.5" /> Cobrado
                             </span>
                             <button
-                              onClick={() => cobrarEImprimir(pedido)}
+                              onClick={() => abrirModalCobro(pedido)}
                               className="text-slate-600 hover:text-slate-900 underline text-[11px]"
                             >
-                              Re-imprimir
+                              Re-imprimir / Modificar
                             </button>
                           </div>
                         )}
@@ -675,7 +711,6 @@ export default function PanelOperador() {
         {pestanaActiva === "inventario" && (
           <div className="mt-6 space-y-5">
             
-            {/* Barra de Filtro y Botón Nuevo Producto */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex flex-1 items-center gap-2">
                 <div className="relative flex-1 max-w-sm">
@@ -720,7 +755,6 @@ export default function PanelOperador() {
               </button>
             </div>
 
-            {/* Listado de Productos de Inventario */}
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -737,7 +771,6 @@ export default function PanelOperador() {
                   <tbody className="divide-y divide-slate-100">
                     {productosFiltradosInv.map((prod) => (
                       <tr key={prod.id} className="hover:bg-slate-50/80 transition">
-                        {/* Nombre e Imagen */}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <div className="h-10 w-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
@@ -758,17 +791,14 @@ export default function PanelOperador() {
                           </div>
                         </td>
 
-                        {/* Categoría */}
                         <td className="py-3 px-4 text-slate-600">
                           {prod.categorias?.nombre || "Sin categoría"}
                         </td>
 
-                        {/* Precio */}
                         <td className="py-3 px-4 font-bold text-slate-900">
                           ${Number(prod.precio).toLocaleString("es-AR")}
                         </td>
 
-                        {/* Ajuste Rápido de Stock */}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
                             <button
@@ -798,7 +828,6 @@ export default function PanelOperador() {
                           </div>
                         </td>
 
-                        {/* Estado Activo / Pausado */}
                         <td className="py-3 px-4 text-center">
                           <button
                             onClick={() => toggleActivoProducto(prod.id, prod.activo)}
@@ -813,7 +842,6 @@ export default function PanelOperador() {
                           </button>
                         </td>
 
-                        {/* Acciones */}
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
@@ -845,7 +873,191 @@ export default function PanelOperador() {
       </div>
 
       {/* =========================================
-          MODAL: CREAR / EDITAR PRODUCTO
+          MODAL: COBRO CON FIADO, VUELTO Y NOTAS
+          ========================================= */}
+      {pedidoCobrando && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-xl">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-4">
+              <div>
+                <h3 className="font-bold text-base text-slate-900">
+                  Cobrar Orden #{pedidoCobrando.id}
+                </h3>
+                <span className="text-xs text-slate-500">
+                  Cliente: <strong className="text-slate-900 capitalize">{pedidoCobrando.cliente_nombre}</strong>
+                </span>
+              </div>
+              <button
+                onClick={() => setPedidoCobrando(null)}
+                className="text-slate-400 hover:text-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Total Grande */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center mb-4">
+              <span className="text-xs uppercase font-bold text-slate-500 block">Total de la Orden</span>
+              <span className="text-3xl font-black text-slate-900">
+                ${Number(pedidoCobrando.total).toLocaleString("es-AR")}
+              </span>
+            </div>
+
+            {/* Selector de Método de Pago */}
+            <div className="space-y-2 mb-4">
+              <label className="block text-xs font-bold text-slate-700 uppercase">
+                Método de Pago
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMetodoCobro("efectivo")}
+                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                    metodoCobro === "efectivo"
+                      ? "bg-slate-900 border-slate-900 text-white"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <Banknote className="h-4 w-4" />
+                  <span>Efectivo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMetodoCobro("transferencia")}
+                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                    metodoCobro === "transferencia"
+                      ? "bg-slate-900 border-slate-900 text-white"
+                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span>Transferencia</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMetodoCobro("fiado")}
+                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                    metodoCobro === "fiado"
+                      ? "bg-purple-900 border-purple-900 text-white"
+                      : "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                  }`}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Fiado</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Si es EFECTIVO: Calculadora de Vuelto */}
+            {metodoCobro === "efectivo" && (
+              <div className="space-y-3 p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ¿Con cuánto paga el cliente?
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Monto entregado"
+                    value={montoEntregado}
+                    onChange={(e) => setMontoEntregado(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-base font-bold text-slate-900 outline-none focus:border-slate-900"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Botones de Montos Rápidos */}
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setMontoEntregado(String(pedidoCobrando.total))}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded-md font-bold text-slate-700 hover:bg-slate-100"
+                  >
+                    Exacto
+                  </button>
+                  {[1000, 2000, 5000, 10000, 20000].map((billete) => (
+                    <button
+                      key={billete}
+                      type="button"
+                      onClick={() => setMontoEntregado(String(billete))}
+                      className="px-2 py-1 bg-white border border-slate-200 rounded-md font-bold text-slate-700 hover:bg-slate-100"
+                    >
+                      ${billete.toLocaleString("es-AR")}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Cálculo en Vivo del Vuelto */}
+                <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-600">
+                    {vueltoCalculado >= 0 ? "Vuelto a Entregar:" : "Faltan cobrar:"}
+                  </span>
+                  <span className={`text-base font-black ${
+                    vueltoCalculado >= 0 ? "text-emerald-700" : "text-amber-600"
+                  }`}>
+                    ${Math.abs(vueltoCalculado).toLocaleString("es-AR")}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Si es FIADO */}
+            {metodoCobro === "fiado" && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl mb-4 text-xs text-purple-900 space-y-1">
+                <span className="font-bold flex items-center gap-1 text-purple-950">
+                  <FileText className="h-4 w-4" /> Venta anotada a Cuenta Corriente (Fiado)
+                </span>
+                <p className="text-[11px] text-purple-700">
+                  El pedido se registrará como fiado para llevar el control de la deuda del cliente.
+                </p>
+              </div>
+            )}
+
+            {/* Notas / Observaciones del Operador */}
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nota u Observación (Opcional)
+              </label>
+              <input
+                type="text"
+                placeholder={metodoCobro === "fiado" ? "Ej. Paga el viernes / Libreta pág 12" : "Aclaración sobre el cobro"}
+                value={notaCobro}
+                onChange={(e) => setNotaCobro(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs text-slate-900 outline-none focus:bg-white focus:border-slate-400"
+              />
+            </div>
+
+            {/* Botones de Acción */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPedidoCobrando(null)}
+                className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarCobroFinal}
+                disabled={cobrandoProceso}
+                className="flex-2 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs disabled:opacity-50"
+              >
+                <Printer className="h-4 w-4" />
+                <span>
+                  {cobrandoProceso
+                    ? "Procesando..."
+                    : metodoCobro === "fiado"
+                    ? "Registrar Fiado & Ticket"
+                    : "Confirmar Cobro & Ticket"}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          MODAL: CREAR / EDITAR PRODUCTO (INVENTARIO)
           ========================================= */}
       {modalProducto && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -966,7 +1178,7 @@ export default function PanelOperador() {
           <div className="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-5 shadow-xl">
             <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 mb-3">
               <span className="font-bold text-xs uppercase text-slate-700 flex items-center gap-1.5">
-                <Printer className="h-4 w-4" /> Ticket Emitido
+                <Printer className="h-4 w-4" /> Comprobante
               </span>
               <button
                 onClick={() => setTicketParaImprimir(null)}
@@ -976,7 +1188,6 @@ export default function PanelOperador() {
               </button>
             </div>
 
-            {/* Recibo Térmico Físico Renderizado */}
             <div id="thermal-receipt" className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono text-xs text-slate-800 leading-snug space-y-2">
               <div className="text-center font-bold">
                 <div className="text-sm">TB LA VEGA</div>
@@ -987,7 +1198,9 @@ export default function PanelOperador() {
                 <div>ORDEN #: {ticketParaImprimir.id}</div>
                 <div>FECHA : {ticketParaImprimir.fecha}</div>
                 <div>CLIENTE: {ticketParaImprimir.cliente?.toUpperCase()}</div>
-                <div>PAGO   : {ticketParaImprimir.metodo_pago?.toUpperCase()}</div>
+                <div>
+                  PAGO   : {ticketParaImprimir.metodo_pago === "fiado" ? "*** CUENTA / FIADO ***" : ticketParaImprimir.metodo_pago?.toUpperCase()}
+                </div>
               </div>
               <div className="border-t border-dashed border-slate-300"></div>
               <div className="space-y-1 text-[11px]">
@@ -1003,6 +1216,26 @@ export default function PanelOperador() {
                 <span>TOTAL:</span>
                 <span>${Number(ticketParaImprimir.total).toFixed(2)}</span>
               </div>
+
+              {ticketParaImprimir.metodo_pago === "efectivo" && ticketParaImprimir.monto_recibido && (
+                <div className="text-[11px] pt-1 text-slate-600 border-t border-slate-200">
+                  <div className="flex justify-between">
+                    <span>ABONO CON:</span>
+                    <span>${Number(ticketParaImprimir.monto_recibido).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-slate-900">
+                    <span>VUELTO:</span>
+                    <span>${Number(ticketParaImprimir.vuelto || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              {ticketParaImprimir.notas && (
+                <div className="text-[10px] bg-slate-100 p-1.5 rounded mt-1 text-slate-700">
+                  NOTA: {ticketParaImprimir.notas}
+                </div>
+              )}
+
               <div className="text-center text-[10px] text-slate-500 pt-1">
                 ¡GRACIAS POR SU COMPRA!
               </div>

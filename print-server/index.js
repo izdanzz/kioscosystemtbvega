@@ -1,4 +1,4 @@
-// print-server/index.js - Servidor Local de Impresión Térmica ESC/POS
+// print-server/index.js - Servidor Local de Impresión Térmica ESC/POS para TB La Vega
 const express = require("express");
 const cors = require("cors");
 
@@ -16,7 +16,6 @@ try {
   escpos.USB = require("escpos-usb");
   USB = escpos.USB;
 } catch (e) {
-  // En caso de que no esté compilado nativamente para Windows aún
   console.log("ℹ️ Módulo ESC/POS nativo no detectado. Modo emulador activo.");
 }
 
@@ -30,31 +29,48 @@ function generarTextoTicket(pedido) {
 
   let ticket = "\n";
   ticket += doubleLine + "\n";
-  ticket += "       KIOSCO AUTOMATIZADO      \n";
-  ticket += "       TICKET DE PEDIDO         \n";
+  ticket += "           TB LA VEGA           \n";
+  ticket += "       TICKET DE COMPRA         \n";
   ticket += doubleLine + "\n";
   ticket += `ORDEN #: ${pedido.pedidoId || pedido.id || "N/A"}\n`;
   ticket += `FECHA : ${fecha}\n`;
   ticket += `CLIENTE: ${(pedido.cliente_nombre || "Cliente").toUpperCase()}\n`;
-  ticket += `PAGO   : ${(pedido.metodo_pago || "Efectivo").toUpperCase()}\n`;
+  
+  if (pedido.metodo_pago === "fiado") {
+    ticket += "PAGO   : *** CUENTA / FIADO ***\n";
+  } else {
+    ticket += `PAGO   : ${(pedido.metodo_pago || "Efectivo").toUpperCase()}\n`;
+  }
+
   ticket += line + "\n";
   ticket += "CANT. PRODUCTO            SUBTOTAL\n";
   ticket += line + "\n";
 
   const items = pedido.items || pedido.detalle_pedido || [];
   if (items.length === 0) {
-    ticket += "1x [Consumo general]      $" + (pedido.total || 0).toFixed(2) + "\n";
+    ticket += "1x [Consumo general]      $" + (Number(pedido.total) || 0).toFixed(2) + "\n";
   } else {
     items.forEach((item) => {
       const cant = item.cantidad || 1;
       const nombre = (item.nombre || item.productos?.nombre || "Producto").substring(0, 18).padEnd(18, " ");
-      const subtotal = "$" + (item.subtotal || (item.precio || item.precio_unitario || 0) * cant).toFixed(2);
+      const subtotal = "$" + (Number(item.subtotal) || (Number(item.precio || item.precio_unitario || 0)) * cant).toFixed(2);
       ticket += `${cant}x ${nombre} ${subtotal.padStart(8, " ")}\n`;
     });
   }
 
   ticket += line + "\n";
   ticket += `TOTAL A PAGAR: $${(Number(pedido.total) || 0).toFixed(2)}\n`;
+
+  if (pedido.metodo_pago === "efectivo" && pedido.monto_recibido) {
+    ticket += `ABONO CON    : $${Number(pedido.monto_recibido).toFixed(2)}\n`;
+    ticket += `VUELTO       : $${Number(pedido.vuelto || 0).toFixed(2)}\n`;
+  }
+
+  if (pedido.notas) {
+    ticket += line + "\n";
+    ticket += `NOTA: ${pedido.notas}\n`;
+  }
+
   ticket += doubleLine + "\n";
   ticket += "     ¡GRACIAS POR SU COMPRA!    \n";
   ticket += "     Conserve este comprobante  \n";
@@ -64,7 +80,6 @@ function generarTextoTicket(pedido) {
   return ticket;
 }
 
-// Endpoint de estado de salud
 app.get("/status", (req, res) => {
   res.json({
     online: true,
@@ -75,7 +90,6 @@ app.get("/status", (req, res) => {
   });
 });
 
-// Endpoint principal para imprimir
 app.post("/imprimir", async (req, res) => {
   const pedido = req.body;
   const pedidoId = pedido.pedidoId || pedido.id || "SIN_ID";
@@ -87,7 +101,6 @@ app.post("/imprimir", async (req, res) => {
   const ticketTexto = generarTextoTicket(pedido);
   console.log(ticketTexto);
 
-  // Si escpos y USB están disponibles e inicializados
   if (escpos && USB) {
     try {
       const device = new USB();
@@ -95,7 +108,7 @@ app.post("/imprimir", async (req, res) => {
 
       device.open((err) => {
         if (err) {
-          console.warn("⚠️ No se pudo conectar directamente al puerto USB de la impresora:", err.message);
+          console.warn("⚠️ No se pudo conectar al puerto USB físico:", err.message);
           return res.json({
             success: true,
             simulated: true,
@@ -109,19 +122,20 @@ app.post("/imprimir", async (req, res) => {
           .align("ct")
           .style("b")
           .size(1, 1)
-          .text("KIOSCO AUTOMATIZADO")
+          .text("TB LA VEGA")
           .text("--------------------------------")
           .align("lt")
           .text(`Orden #: ${pedidoId}`)
           .text(`Cliente: ${pedido.cliente_nombre || "Cliente"}`)
           .text(`Fecha: ${new Date().toLocaleString()}`)
+          .text(`Pago: ${(pedido.metodo_pago || "Efectivo").toUpperCase()}`)
           .text("--------------------------------");
 
         const items = pedido.items || pedido.detalle_pedido || [];
         items.forEach((item) => {
           const cant = item.cantidad || 1;
           const nom = item.nombre || item.productos?.nombre || "Producto";
-          const sub = "$" + (item.subtotal || (item.precio || item.precio_unitario || 0) * cant).toFixed(2);
+          const sub = "$" + (Number(item.subtotal) || (Number(item.precio || item.precio_unitario || 0)) * cant).toFixed(2);
           printer.text(`${cant}x ${nom} - ${sub}`);
         });
 
@@ -130,7 +144,22 @@ app.post("/imprimir", async (req, res) => {
           .align("rt")
           .style("b")
           .size(1, 1)
-          .text(`TOTAL: $${(Number(pedido.total) || 0).toFixed(2)}`)
+          .text(`TOTAL: $${(Number(pedido.total) || 0).toFixed(2)}`);
+
+        if (pedido.metodo_pago === "efectivo" && pedido.monto_recibido) {
+          printer
+            .align("rt")
+            .text(`Abono: $${Number(pedido.monto_recibido).toFixed(2)}`)
+            .text(`Vuelto: $${Number(pedido.vuelto || 0).toFixed(2)}`);
+        }
+
+        if (pedido.notas) {
+          printer
+            .align("lt")
+            .text(`Nota: ${pedido.notas}`);
+        }
+
+        printer
           .align("ct")
           .text("--------------------------------")
           .text("GRACIAS POR SU COMPRA")
@@ -139,7 +168,7 @@ app.post("/imprimir", async (req, res) => {
           .close();
 
         console.log("✅ Ticket enviado a impresora térmica USB con éxito.");
-        return res.json({ success: true, hardwarePrinted: true });
+        return res.json({ success: true, hardwarePrinted: true, preview: ticketTexto });
       });
       return;
     } catch (err) {
@@ -147,19 +176,17 @@ app.post("/imprimir", async (req, res) => {
     }
   }
 
-  // Fallback simulador en consola (útil para pruebas en desarrollo)
   res.json({
     success: true,
     simulated: true,
-    message: "Ticket procesado correctamente en modo simulación (consola).",
+    message: "Ticket procesado correctamente en modo emulación.",
     preview: ticketTexto
   });
 });
 
 app.listen(PORT, () => {
   console.log(`\n======================================================`);
-  console.log(`🚀 AGENTE DE IMPRESIÓN KIOSCO POS V2.0 ACTIVO`);
+  console.log(`🚀 AGENTE DE IMPRESIÓN TB LA VEGA ACTIVO`);
   console.log(`📡 Escuchando en http://localhost:${PORT}`);
-  console.log(`🔍 Endpoint de test: http://localhost:${PORT}/status`);
   console.log(`======================================================\n`);
 });
