@@ -16,8 +16,8 @@ import {
   Banknote,
   ChevronRight,
   Trash2,
-  Info,
-  Package
+  Package,
+  Heart
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { playChimeSound } from "@/lib/sound";
@@ -53,11 +53,11 @@ export default function MenuCliente() {
     }
     cargarDatos();
 
-    // Suscripción Realtime a cambios en productos (stock / precios actualizados en caja)
+    // Suscripción Realtime a cambios en productos (stock / precios actualizados en mostrador)
     let canal = null;
     if (isSupabaseConfigured()) {
       canal = supabase
-        .channel("cliente_productos_realtime")
+        .channel("cliente_productos_realtime_tb")
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "productos" },
@@ -237,30 +237,37 @@ export default function MenuCliente() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center font-sans selection:bg-slate-900 selection:text-white">
-      <div className="w-full max-w-lg bg-white border-x border-slate-200 min-h-screen flex flex-col shadow-xs">
+    <div className="min-h-screen bg-[#F1F4F3] text-tb-dark flex flex-col items-center font-sans selection:bg-tb-dark selection:text-tb-gold">
+      <div className="w-full max-w-lg bg-white border-x border-[#E2DFD8] min-h-screen flex flex-col shadow-sm">
         
         {/* =========================================
-            PASO 1: IDENTIFICACIÓN DEL CLIENTE
+            PASO 1: BIENVENIDA & REGISTRO DE CLIENTE
             ========================================= */}
         {paso === "registro" && (
           <div className="flex-1 flex flex-col justify-between p-6">
-            <div className="pt-16 text-center">
-              <div className="h-16 w-16 mx-auto rounded-2xl bg-slate-900 text-white flex items-center justify-center mb-4 shadow-xs">
-                <Store className="h-8 w-8 stroke-[2]" />
+            <div className="pt-12 text-center">
+              <div className="inline-block p-3 rounded-2xl bg-[#FAF8F5] border border-tb-sand shadow-xs mb-4">
+                <img 
+                  src="https://assets.cdn.filesafe.space/SzYXoLdE37ybSNUMDx8V/media/7fe3f97b-2a5c-46ab-9176-504c273b278b.png" 
+                  alt="Templo Bíblico La Vega" 
+                  className="h-16 w-auto mx-auto object-contain"
+                />
               </div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                TB La Vega
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-tb-dark tracking-tight">
+                Templo Bíblico La Vega
               </h1>
-              <p className="text-slate-500 text-sm mt-1">
-                Escribe tu nombre para iniciar tu pedido
+              <p className="text-xs uppercase tracking-widest font-semibold text-tb-terracotta mt-1">
+                Cafetería & Kiosco Digital
+              </p>
+              <p className="text-tb-muted text-xs mt-2 max-w-xs mx-auto">
+                Escribe tu nombre para ver el menú y hacer tu pedido con precios en Pesos Dominicanos (DOP).
               </p>
             </div>
 
-            <form onSubmit={iniciarCompra} className="my-8 bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
+            <form onSubmit={iniciarCompra} className="my-8 bg-[#FAF8F5] p-6 rounded-3xl border border-tb-sand space-y-4 shadow-2xs">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 text-center">
-                  Tu Nombre
+                <label className="block text-xs font-bold uppercase tracking-wider text-tb-dark mb-1.5 text-center">
+                  ¿Cómo te llamas?
                 </label>
                 <input
                   type="text"
@@ -268,13 +275,13 @@ export default function MenuCliente() {
                   placeholder="Ej. Juan Pérez"
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  className="w-full bg-white border border-slate-300 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-slate-900 rounded-xl px-4 py-3.5 text-base font-medium outline-none transition placeholder:text-slate-400 text-center"
+                  className="w-full bg-white border border-[#D5D0C6] focus:border-tb-dark focus:ring-1 focus:ring-tb-dark text-tb-dark rounded-xl px-4 py-3.5 text-base font-medium outline-none transition placeholder:text-slate-400 text-center"
                   autoFocus
                 />
               </div>
 
               {errorMensaje && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 flex items-center gap-2">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{errorMensaje}</span>
                 </div>
@@ -282,77 +289,86 @@ export default function MenuCliente() {
 
               <button
                 type="submit"
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] shadow-xs cursor-pointer"
+                className="w-full bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] shadow-sm cursor-pointer border border-tb-gold/20"
               >
-                <span>Ver Menú Digital</span>
+                <span>Ver Menú & Ordenar</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>
 
-            <div className="text-center pb-4 text-xs text-slate-400">
-              TB La Vega • Precios en Pesos Dominicanos (DOP)
+            <div className="text-center pb-4 text-xs text-tb-muted">
+              Templo Bíblico La Vega • Calle Sánchez #111
             </div>
           </div>
         )}
 
         {/* =========================================
-            PASO 2: CATÁLOGO DE PRODUCTOS (IMAGEN, TÍTULO Y DESCRIPCIÓN)
+            PASO 2: MENÚ & CATÁLOGO DE PRODUCTOS (FOTO, TÍTULO Y DESCRIPCIÓN)
             ========================================= */}
         {paso === "menu" && (
           <div className="flex-1 flex flex-col pb-24">
             
-            {/* Cabecera */}
-            <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-4 pt-3.5 pb-2.5">
+            {/* Cabecera Estilo tblavega.com en Verde Petróleo Oscuro */}
+            <header className="sticky top-0 z-30 bg-tb-dark text-white border-b border-tb-gold/20 px-4 pt-3 pb-3 shadow-md">
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">TB La Vega</h2>
-                  <span className="text-xs text-slate-500">
-                    Cliente: <strong>{nombre}</strong> • <span className="text-emerald-700 font-semibold">Precios en DOP</span>
-                  </span>
+                <div className="flex items-center gap-2.5">
+                  <img 
+                    src="https://assets.cdn.filesafe.space/SzYXoLdE37ybSNUMDx8V/media/7fe3f97b-2a5c-46ab-9176-504c273b278b.png" 
+                    alt="Logo TB La Vega" 
+                    className="h-8 w-auto brightness-110"
+                  />
+                  <div>
+                    <h2 className="text-base font-serif font-bold text-white tracking-wide">
+                      TB La Vega
+                    </h2>
+                    <span className="text-[11px] text-tb-gold block">
+                      Cliente: <strong>{nombre}</strong> • DOP
+                    </span>
+                  </div>
                 </div>
 
                 <button
                   onClick={() => setMostrarCarritoModal(true)}
-                  className="relative p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition active:scale-95 cursor-pointer"
-                  title="Ver carrito"
+                  className="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 text-tb-gold transition active:scale-95 cursor-pointer border border-tb-gold/30"
+                  title="Ver carrito de compras"
                 >
                   <ShoppingBag className="h-5 w-5" />
                   {totalArticulos > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-slate-900 text-white text-[11px] font-bold h-5 w-5 rounded-full flex items-center justify-center shadow">
+                    <span className="absolute -top-1.5 -right-1.5 bg-tb-gold text-tb-dark text-[11px] font-black h-5 w-5 rounded-full flex items-center justify-center shadow">
                       {totalArticulos}
                     </span>
                   )}
                 </button>
               </div>
 
-              {/* Buscador */}
-              <div className="relative mb-2.5">
-                <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
+              {/* Buscador Integrado */}
+              <div className="relative mb-2">
+                <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-tb-sand/60" />
                 <input
                   type="text"
-                  placeholder="Buscar producto, descripción o categoría..."
+                  placeholder="Buscar producto, ingrediente o snack..."
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  className="w-full bg-slate-100 border border-slate-200 focus:bg-white focus:border-slate-400 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition"
+                  className="w-full bg-white/10 border border-white/20 focus:bg-white focus:text-tb-dark focus:border-tb-gold rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder:text-tb-sand/60 outline-none transition"
                 />
                 {busqueda && (
                   <button
                     onClick={() => setBusqueda("")}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-2.5 text-white/70 hover:text-white"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 )}
               </div>
 
-              {/* Categorías */}
+              {/* Categorías con Estilo de Pastillas de tblavega.com */}
               <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar">
                 <button
                   onClick={() => setCategoriaSeleccionada("todas")}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                     categoriaSeleccionada === "todas"
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-tb-gold text-tb-dark font-bold shadow-xs"
+                      : "bg-white/10 text-tb-sand hover:bg-white/20"
                   }`}
                 >
                   Todos
@@ -363,8 +379,8 @@ export default function MenuCliente() {
                     onClick={() => setCategoriaSeleccionada(cat.id)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                       String(categoriaSeleccionada) === String(cat.id)
-                        ? "bg-slate-900 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        ? "bg-tb-gold text-tb-dark font-bold shadow-xs"
+                        : "bg-white/10 text-tb-sand hover:bg-white/20"
                     }`}
                   >
                     {cat.nombre}
@@ -373,13 +389,13 @@ export default function MenuCliente() {
               </div>
             </header>
 
-            {/* Listado con Imagen, Título y Descripción de cada producto */}
-            <main className="flex-1 p-4 space-y-4 bg-slate-50">
+            {/* Listado con Imagen, Título y Descripción con Estética tblavega.com */}
+            <main className="flex-1 p-4 space-y-4 bg-[#F1F4F3]">
               {productosFiltrados.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 bg-white border border-slate-200 rounded-2xl p-6">
-                  <Package className="h-10 w-10 mx-auto mb-2 text-slate-300" />
-                  <p className="font-semibold text-slate-700 text-sm">No encontramos productos en esta sección</p>
-                  <p className="text-xs text-slate-400 mt-1">Prueba seleccionando otra categoría o borrando la búsqueda.</p>
+                <div className="text-center py-16 text-tb-muted bg-white border border-[#E2DFD8] rounded-2xl p-6">
+                  <Package className="h-10 w-10 mx-auto mb-2 text-tb-sand" />
+                  <p className="font-serif font-bold text-tb-dark text-base">No encontramos productos en esta sección</p>
+                  <p className="text-xs text-tb-muted mt-1">Prueba seleccionando otra categoría o borrando la búsqueda.</p>
                 </div>
               ) : (
                 productosFiltrados.map((prod) => {
@@ -390,12 +406,12 @@ export default function MenuCliente() {
                   return (
                     <div
                       key={prod.id}
-                      className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs hover:shadow-sm transition flex flex-col"
+                      className="bg-white border border-[#E2DFD8] rounded-2xl overflow-hidden shadow-xs hover:border-tb-dark/30 transition flex flex-col"
                     >
-                      {/* 1. IMAGEN DEL PRODUCTO (Destacada, nítida con badge de stock) */}
+                      {/* 1. IMAGEN DEL PRODUCTO (Nitidez, aspect-ratio, zoom sutil) */}
                       <div 
                         onClick={() => setProductoDetalle(prod)}
-                        className="relative w-full h-44 bg-slate-100 cursor-pointer overflow-hidden group"
+                        className="relative w-full h-44 bg-[#FAF8F5] cursor-pointer overflow-hidden group"
                       >
                         {prod.imagen_url ? (
                           <img
@@ -408,15 +424,15 @@ export default function MenuCliente() {
                             }}
                           />
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                          <div className="w-full h-full flex flex-col items-center justify-center text-tb-sand">
                             <Store className="h-12 w-12 stroke-[1.5]" />
-                            <span className="text-[10px] text-slate-400 mt-1">TB La Vega</span>
+                            <span className="text-[10px] text-tb-muted mt-1 font-serif">TB La Vega</span>
                           </div>
                         )}
 
                         {/* Etiqueta de Categoría */}
                         {prod.categorias?.nombre && (
-                          <span className="absolute top-2.5 left-2.5 bg-white/90 backdrop-blur-xs text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs">
+                          <span className="absolute top-2.5 left-2.5 bg-tb-dark/90 text-tb-gold text-[10px] font-bold px-2.5 py-0.5 rounded-md shadow-xs backdrop-blur-xs">
                             {prod.categorias.nombre}
                           </span>
                         )}
@@ -427,7 +443,7 @@ export default function MenuCliente() {
                             ¡Solo {prod.stock} disponibles!
                           </span>
                         ) : (
-                          <span className="absolute top-2.5 right-2.5 bg-slate-900/70 backdrop-blur-xs text-white text-[10px] font-medium px-2 py-0.5 rounded-md">
+                          <span className="absolute top-2.5 right-2.5 bg-white/90 text-tb-dark text-[10px] font-medium px-2 py-0.5 rounded-md shadow-xs">
                             Stock: {prod.stock}
                           </span>
                         )}
@@ -439,51 +455,51 @@ export default function MenuCliente() {
                           onClick={() => setProductoDetalle(prod)}
                           className="cursor-pointer"
                         >
-                          {/* TÍTULO DEL PRODUCTO */}
-                          <h3 className="font-bold text-slate-900 text-base leading-snug hover:text-slate-700 transition">
+                          {/* TÍTULO DEL PRODUCTO EN SERIF */}
+                          <h3 className="font-serif font-bold text-tb-dark text-lg leading-snug hover:text-tb-emerald transition">
                             {prod.nombre}
                           </h3>
 
                           {/* DESCRIPCIÓN DEL PRODUCTO */}
                           {prod.descripcion ? (
-                            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-2">
+                            <p className="text-xs text-tb-muted mt-1 leading-relaxed line-clamp-2">
                               {prod.descripcion}
                             </p>
                           ) : (
-                            <p className="text-xs text-slate-400 mt-1.5 italic">
-                              Disponible en mostrador
+                            <p className="text-xs text-slate-400 mt-1 italic">
+                              Disponible en cafetería
                             </p>
                           )}
                         </div>
 
                         {/* FILA INFERIOR: PRECIO EN DOP Y BOTÓN DE ACCIÓN */}
-                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <div className="mt-4 pt-3 border-t border-[#F1EFEA] flex items-center justify-between">
                           <div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-tb-terracotta block">
                               Precio
                             </span>
-                            <span className="text-lg font-black text-slate-900 tracking-tight">
+                            <span className="text-lg font-black text-tb-dark tracking-tight">
                               {formatDOP(prod.precio)}
                             </span>
                           </div>
 
                           <div>
                             {cantidad > 0 ? (
-                              <div className="flex items-center gap-1 bg-slate-100 border border-slate-300 rounded-xl p-1">
+                              <div className="flex items-center gap-1 bg-[#FAF8F5] border border-tb-sand rounded-xl p-1">
                                 <button
                                   onClick={() => restarDelCarrito(prod.id)}
-                                  className="h-7 w-7 rounded-lg bg-white text-slate-800 shadow-xs flex items-center justify-center font-bold active:scale-95 cursor-pointer"
+                                  className="h-7 w-7 rounded-lg bg-white text-tb-dark shadow-xs flex items-center justify-center font-bold active:scale-95 cursor-pointer"
                                   title="Quitar uno"
                                 >
                                   <Minus className="h-3.5 w-3.5" />
                                 </button>
-                                <span className="w-6 text-center font-bold text-xs text-slate-900">
+                                <span className="w-6 text-center font-bold text-xs text-tb-dark">
                                   {cantidad}
                                 </span>
                                 <button
                                   onClick={() => agregarAlCarrito(prod)}
                                   disabled={cantidad >= prod.stock}
-                                  className="h-7 w-7 rounded-lg bg-slate-900 text-white shadow-xs flex items-center justify-center font-bold disabled:opacity-40 active:scale-95 cursor-pointer"
+                                  className="h-7 w-7 rounded-lg bg-tb-dark text-tb-gold shadow-xs flex items-center justify-center font-bold disabled:opacity-40 active:scale-95 cursor-pointer"
                                   title="Agregar otro"
                                 >
                                   <Plus className="h-3.5 w-3.5" />
@@ -493,7 +509,7 @@ export default function MenuCliente() {
                               <button
                                 onClick={() => agregarAlCarrito(prod)}
                                 disabled={sinStock}
-                                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 disabled:opacity-40 cursor-pointer"
+                                className="px-4 py-2 rounded-xl bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold text-xs flex items-center gap-1.5 shadow-xs transition active:scale-95 disabled:opacity-40 cursor-pointer border border-tb-gold/20"
                               >
                                 <Plus className="h-3.5 w-3.5" />
                                 <span>Agregar</span>
@@ -508,21 +524,21 @@ export default function MenuCliente() {
               )}
             </main>
 
-            {/* Barra Inferior Flotante del Carrito */}
+            {/* Barra Inferior Flotante del Carrito Estilo tblavega.com */}
             {totalArticulos > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto p-4 z-40 bg-gradient-to-t from-white via-white/95 to-transparent pt-6">
+              <div className="fixed bottom-0 left-0 right-0 max-w-lg mx-auto p-4 z-40 bg-gradient-to-t from-[#F1F4F3] via-[#F1F4F3]/95 to-transparent pt-6">
                 <button
                   onClick={() => setMostrarCarritoModal(true)}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl flex items-center justify-between shadow-lg active:scale-[0.99] transition cursor-pointer"
+                  className="w-full bg-tb-dark hover:bg-tb-emerald text-white font-serif font-bold py-3.5 px-5 rounded-2xl flex items-center justify-between shadow-xl active:scale-[0.99] transition cursor-pointer border border-tb-gold/30"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="bg-slate-800 text-white text-xs px-2.5 py-0.5 rounded font-bold">
+                  <div className="flex items-center gap-2.5">
+                    <span className="bg-tb-gold text-tb-dark text-xs px-2.5 py-0.5 rounded-full font-sans font-black">
                       {totalArticulos}
                     </span>
-                    <span className="text-sm">Ver Carrito</span>
+                    <span className="text-sm tracking-wide">Ver Mi Orden</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-base font-bold">
+                  <div className="flex items-center gap-1 text-tb-gold font-sans">
+                    <span className="text-base font-black">
                       {formatDOP(totalCarrito)}
                     </span>
                     <ChevronRight className="h-4 w-4" />
@@ -534,14 +550,14 @@ export default function MenuCliente() {
         )}
 
         {/* =========================================
-            MODAL DE DETALLE DEL PRODUCTO (IMAGEN COMPLETA, TÍTULO Y DESCRIPCIÓN)
+            MODAL DE DETALLE DEL PRODUCTO (IMAGEN, TÍTULO Y DESCRIPCIÓN COMPLETA)
             ========================================= */}
         {productoDetalle && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex justify-center items-end sm:items-center p-0 sm:p-4">
-            <div className="bg-white border border-slate-200 w-full max-w-md rounded-t-3xl sm:rounded-2xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="fixed inset-0 z-50 bg-tb-dark/60 backdrop-blur-xs flex justify-center items-end sm:items-center p-0 sm:p-4">
+            <div className="bg-white border border-[#E2DFD8] w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
               
               {/* Imagen Grande */}
-              <div className="relative w-full h-56 bg-slate-100">
+              <div className="relative w-full h-56 bg-[#FAF8F5]">
                 {productoDetalle.imagen_url ? (
                   <img
                     src={productoDetalle.imagen_url}
@@ -549,9 +565,9 @@ export default function MenuCliente() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                  <div className="w-full h-full flex flex-col items-center justify-center text-tb-sand">
                     <Store className="h-16 w-16 stroke-[1.5]" />
-                    <span className="text-xs text-slate-400 mt-2">TB La Vega</span>
+                    <span className="text-xs text-tb-muted mt-2 font-serif">TB La Vega</span>
                   </div>
                 )}
                 
@@ -563,7 +579,7 @@ export default function MenuCliente() {
                 </button>
 
                 {productoDetalle.categorias?.nombre && (
-                  <span className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-xs text-slate-900 text-xs font-bold px-2.5 py-1 rounded-lg shadow-sm">
+                  <span className="absolute bottom-3 left-3 bg-tb-dark text-tb-gold text-xs font-bold px-2.5 py-1 rounded-lg shadow-sm">
                     {productoDetalle.categorias.nombre}
                   </span>
                 )}
@@ -572,41 +588,41 @@ export default function MenuCliente() {
               {/* Contenido Completo */}
               <div className="p-5 flex-1 overflow-y-auto space-y-4">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 leading-snug">
+                  <h2 className="text-xl font-serif font-bold text-tb-dark leading-snug">
                     {productoDetalle.nombre}
                   </h2>
-                  <div className="text-2xl font-black text-slate-900 mt-1">
+                  <div className="text-2xl font-black text-tb-dark mt-1 font-sans">
                     {formatDOP(productoDetalle.precio)}
                   </div>
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-tb-terracotta mb-1">
                     Descripción del Producto
                   </h4>
-                  <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
-                    {productoDetalle.descripcion || "Producto fresco listo para ordenar en mostrador."}
+                  <p className="text-sm text-tb-dark leading-relaxed bg-[#FAF8F5] p-3.5 rounded-2xl border border-tb-sand">
+                    {productoDetalle.descripcion || "Producto fresco listo para ordenar en cafetería."}
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-slate-500 py-1">
-                  <span>Stock disponible en mostrador:</span>
-                  <span className="font-bold text-slate-900">{productoDetalle.stock} unidades</span>
+                <div className="flex items-center justify-between text-xs text-tb-muted py-1">
+                  <span>Stock disponible en cafetería:</span>
+                  <span className="font-bold text-tb-dark">{productoDetalle.stock} unidades</span>
                 </div>
               </div>
 
               {/* Botón Inferior */}
-              <div className="p-4 border-t border-slate-200 bg-slate-50">
+              <div className="p-4 border-t border-[#E2DFD8] bg-[#FAF8F5]">
                 <button
                   onClick={() => {
                     agregarAlCarrito(productoDetalle, 1);
                     setProductoDetalle(null);
                   }}
                   disabled={productoDetalle.stock <= 0}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                  className="w-full bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] disabled:opacity-50 cursor-pointer border border-tb-gold/20"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Agregar al Carrito • {formatDOP(productoDetalle.precio)}</span>
+                  <span>Agregar a la Orden • {formatDOP(productoDetalle.precio)}</span>
                 </button>
               </div>
             </div>
@@ -617,25 +633,25 @@ export default function MenuCliente() {
             MODAL DE REVISIÓN DEL CARRITO
             ========================================= */}
         {mostrarCarritoModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex justify-center items-end sm:items-center p-0 sm:p-4">
-            <div className="bg-white border border-slate-200 w-full max-w-md rounded-t-3xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+          <div className="fixed inset-0 z-50 bg-tb-dark/60 backdrop-blur-xs flex justify-center items-end sm:items-center p-0 sm:p-4">
+            <div className="bg-white border border-[#E2DFD8] w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
               
-              <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="p-4 border-b border-[#E2DFD8] flex items-center justify-between bg-tb-dark text-white">
                 <div className="flex items-center gap-2">
-                  <ShoppingBag className="h-5 w-5 text-slate-800" />
-                  <h3 className="font-bold text-slate-900 text-base">Tu Pedido</h3>
+                  <ShoppingBag className="h-5 w-5 text-tb-gold" />
+                  <h3 className="font-serif font-bold text-white text-base">Tu Pedido • TB La Vega</h3>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={vaciarCarrito}
-                    className="p-1.5 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                    className="p-1.5 text-tb-sand/70 hover:text-red-400 transition cursor-pointer"
                     title="Vaciar carrito"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setMostrarCarritoModal(false)}
-                    className="p-1.5 text-slate-400 hover:text-slate-800 cursor-pointer"
+                    className="p-1.5 text-tb-sand/70 hover:text-white cursor-pointer"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -646,41 +662,41 @@ export default function MenuCliente() {
                 {carrito.map((item) => (
                   <div key={item.id} className="pt-3 first:pt-0 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="h-10 w-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                      <div className="h-10 w-10 rounded-lg bg-[#FAF8F5] border border-tb-sand overflow-hidden shrink-0 flex items-center justify-center">
                         {item.imagen_url ? (
                           <img src={item.imagen_url} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <Store className="h-4 w-4 text-slate-400" />
+                          <Store className="h-4 w-4 text-tb-sand" />
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-bold text-sm text-slate-900 truncate">{item.nombre}</h4>
-                        <p className="text-xs text-slate-500">
+                        <h4 className="font-bold text-sm text-tb-dark truncate">{item.nombre}</h4>
+                        <p className="text-xs text-tb-muted">
                           {formatDOP(item.precio)} c/u
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2.5 shrink-0">
-                      <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                      <div className="flex items-center gap-1 bg-[#FAF8F5] rounded-lg p-1 border border-tb-sand">
                         <button
                           onClick={() => restarDelCarrito(item.id)}
-                          className="h-6 w-6 rounded bg-white text-slate-700 shadow-xs flex items-center justify-center font-bold cursor-pointer"
+                          className="h-6 w-6 rounded bg-white text-tb-dark shadow-2xs flex items-center justify-center font-bold cursor-pointer"
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="w-5 text-center font-bold text-xs text-slate-900">
+                        <span className="w-5 text-center font-bold text-xs text-tb-dark font-sans">
                           {item.cantidad}
                         </span>
                         <button
                           onClick={() => agregarAlCarrito(item)}
                           disabled={item.cantidad >= item.stock}
-                          className="h-6 w-6 rounded bg-slate-900 text-white shadow-xs flex items-center justify-center font-bold disabled:opacity-40 cursor-pointer"
+                          className="h-6 w-6 rounded bg-tb-dark text-tb-gold shadow-2xs flex items-center justify-center font-bold disabled:opacity-40 cursor-pointer"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
                       </div>
-                      <span className="font-bold text-xs text-slate-900 min-w-16 text-right">
+                      <span className="font-bold text-xs text-tb-dark min-w-16 text-right font-sans">
                         {formatDOP(Number(item.precio) * item.cantidad)}
                       </span>
                     </div>
@@ -688,8 +704,8 @@ export default function MenuCliente() {
                 ))}
 
                 <div className="pt-4 space-y-2">
-                  <label className="text-xs font-bold uppercase text-slate-600 block">
-                    Forma de Pago en Caja
+                  <label className="text-xs font-bold uppercase text-tb-terracotta block">
+                    Forma de Pago en Mostrador
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -697,8 +713,8 @@ export default function MenuCliente() {
                       onClick={() => setMetodoPago("efectivo")}
                       className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                         metodoPago === "efectivo"
-                          ? "bg-slate-900 border-slate-900 text-white"
-                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                          ? "bg-tb-dark border-tb-dark text-tb-gold"
+                          : "bg-[#FAF8F5] border-tb-sand text-tb-muted hover:bg-tb-sand"
                       }`}
                     >
                       <Banknote className="h-4 w-4" />
@@ -709,8 +725,8 @@ export default function MenuCliente() {
                       onClick={() => setMetodoPago("transferencia")}
                       className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
                         metodoPago === "transferencia"
-                          ? "bg-slate-900 border-slate-900 text-white"
-                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                          ? "bg-tb-dark border-tb-dark text-tb-gold"
+                          : "bg-[#FAF8F5] border-tb-sand text-tb-muted hover:bg-tb-sand"
                       }`}
                     >
                       <CreditCard className="h-4 w-4" />
@@ -725,21 +741,21 @@ export default function MenuCliente() {
                     placeholder="Aclaración adicional (ej. Sin cebolla, bebida bien fría)"
                     value={notas}
                     onChange={(e) => setNotas(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-400 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none"
+                    className="w-full bg-[#FAF8F5] border border-tb-sand focus:bg-white focus:border-tb-dark rounded-xl px-3 py-2 text-xs text-tb-dark placeholder:text-slate-400 outline-none"
                   />
                 </div>
               </div>
 
-              <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-3">
+              <div className="p-4 border-t border-[#E2DFD8] bg-[#FAF8F5] space-y-3">
                 <div className="flex justify-between items-baseline">
-                  <span className="text-xs uppercase font-bold text-slate-500">Total a Pagar (DOP)</span>
-                  <span className="text-2xl font-black text-slate-900">
+                  <span className="text-xs uppercase font-bold text-tb-terracotta">Total a Pagar (DOP)</span>
+                  <span className="text-2xl font-black text-tb-dark font-sans">
                     {formatDOP(totalCarrito)}
                   </span>
                 </div>
 
                 {errorMensaje && (
-                  <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">
+                  <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
                     {errorMensaje}
                   </div>
                 )}
@@ -747,7 +763,7 @@ export default function MenuCliente() {
                 <button
                   onClick={enviarPedido}
                   disabled={cargando}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                  className="w-full bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] disabled:opacity-50 cursor-pointer border border-tb-gold/20"
                 >
                   {cargando ? (
                     <span>Enviando orden a caja...</span>
@@ -767,44 +783,44 @@ export default function MenuCliente() {
             PASO 3: COMPROBANTE DIGITAL DEL CLIENTE
             ========================================= */}
         {paso === "comprobante" && pedidoGuardado && (
-          <div className="flex-1 flex flex-col justify-between p-6 bg-slate-50">
+          <div className="flex-1 flex flex-col justify-between p-6 bg-[#F1F4F3]">
             <div className="pt-6 flex flex-col items-center">
-              <div className="h-14 w-14 rounded-full bg-slate-900 text-white flex items-center justify-center mb-3">
-                <Check className="h-7 w-7 stroke-[2.5]" />
+              <div className="h-16 w-16 rounded-full bg-tb-dark text-tb-gold flex items-center justify-center mb-3 shadow-md border border-tb-gold/30">
+                <Check className="h-8 w-8 stroke-[2.5]" />
               </div>
 
-              <h2 className="text-2xl font-bold text-slate-900 text-center">
-                ¡Pedido Enviado!
+              <h2 className="text-2xl font-serif font-bold text-tb-dark text-center">
+                ¡Pedido Enviado a Caja!
               </h2>
-              <p className="text-slate-500 text-xs mt-1 text-center">
-                Pasa por el mostrador para abonar y retirar tus productos.
+              <p className="text-tb-muted text-xs mt-1 text-center max-w-xs">
+                Pasa por el mostrador de cafetería para abonar y retirar tus productos. ¡Dios te bendiga!
               </p>
 
-              <div className="w-full mt-6 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-                <div className="flex justify-between items-start border-b border-dashed border-slate-200 pb-3 mb-3">
+              <div className="w-full mt-6 bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs">
+                <div className="flex justify-between items-start border-b border-dashed border-[#D5D0C6] pb-3 mb-3">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-tb-terracotta uppercase tracking-wider block">
                       ORDEN
                     </span>
-                    <span className="text-3xl font-black text-slate-900">
+                    <span className="text-3xl font-black text-tb-dark font-sans">
                       #{pedidoGuardado.id}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-tb-terracotta uppercase tracking-wider block">
                       CLIENTE
                     </span>
-                    <span className="text-base font-bold text-slate-900 capitalize">
+                    <span className="text-base font-serif font-bold text-tb-dark capitalize">
                       {pedidoGuardado.cliente_nombre}
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-2 border-b border-dashed border-slate-200 pb-3 mb-3 text-xs">
+                <div className="space-y-2 border-b border-dashed border-[#D5D0C6] pb-3 mb-3 text-xs">
                   {pedidoGuardado.items?.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-slate-700">
+                    <div key={idx} className="flex justify-between text-tb-dark">
                       <span>{item.cantidad}x {item.nombre}</span>
-                      <span className="font-bold text-slate-900">
+                      <span className="font-bold font-sans">
                         {formatDOP(Number(item.precio) * item.cantidad)}
                       </span>
                     </div>
@@ -812,19 +828,19 @@ export default function MenuCliente() {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-xs uppercase font-bold text-slate-500">Total a Pagar</span>
-                  <span className="text-2xl font-black text-slate-900">
+                  <span className="text-xs uppercase font-bold text-tb-terracotta">Total a Pagar</span>
+                  <span className="text-2xl font-black text-tb-dark font-sans">
                     {formatDOP(pedidoGuardado.total)}
                   </span>
                 </div>
 
-                <div className="mt-4 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 flex justify-between">
+                <div className="mt-4 p-2.5 rounded-xl bg-[#FAF8F5] border border-tb-sand text-xs text-tb-dark flex justify-between">
                   <span>Pago en mostrador:</span>
-                  <span className="font-bold uppercase text-slate-900">{pedidoGuardado.metodo_pago}</span>
+                  <span className="font-bold uppercase text-tb-emerald">{pedidoGuardado.metodo_pago}</span>
                 </div>
 
                 {pedidoGuardado.notas && (
-                  <div className="mt-2 text-[11px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                  <div className="mt-2 text-[11px] text-tb-muted bg-[#FAF8F5] p-2 rounded-lg border border-tb-sand">
                     Nota: {pedidoGuardado.notas}
                   </div>
                 )}
@@ -837,7 +853,7 @@ export default function MenuCliente() {
                   setPedidoGuardado(null);
                   setPaso("menu");
                 }}
-                className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold py-3.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-xs"
+                className="w-full bg-white border border-[#D5D0C6] hover:bg-[#FAF8F5] text-tb-dark font-serif font-bold py-3.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-xs"
               >
                 Hacer otro pedido
               </button>

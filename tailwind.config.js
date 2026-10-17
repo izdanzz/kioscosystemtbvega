@@ -8,18 +8,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488',
-          700: '#0f766e',
-          800: '#115e59',
-          900: '#134e4a',
+        tb: {
+          dark: '#001D20',       // Color primario oscuro de tblavega.com (Deep Petrol Teal)
+          darker: '#001315',     // Tono más profundo
+          emerald: '#055346',    // Verde bosque esmeralda
+          gold: '#FFDE95',       // Dorado champagne / acento de tblavega.com
+          'gold-hover': '#f3c395',
+          sand: '#EEEBE5',       // Crema cálido lino de tblavega.com
+          cream: '#F1F4F3',      // Fondo sutil off-white
+          terracotta: '#B38D79', // Acento cuero/terracota
+          muted: '#526061',      // Gris verdoso para texto secundario
         }
+      },
+      fontFamily: {
+        serif: ['"EB Garamond"', 'Georgia', 'serif'],
+        sans: ['"Outfit"', 'system-ui', '-apple-system', 'sans-serif'],
       }
     },
   },
