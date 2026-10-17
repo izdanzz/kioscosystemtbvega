@@ -9,14 +9,11 @@ import {
   Database, 
   ExternalLink, 
   CheckCircle2, 
-  AlertCircle,
   Smartphone,
   Monitor,
   ArrowRight,
-  ShieldCheck,
   Download,
-  Share2,
-  Sparkles
+  ShieldCheck
 } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
@@ -43,90 +40,84 @@ export default function HomePage() {
   const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(menuUrl)}&margin=10`;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 flex flex-col justify-between selection:bg-teal-500 selection:text-slate-950 font-sans relative overflow-hidden">
-      {/* Luces difuminadas de fondo */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-teal-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-[120px] pointer-events-none" />
-
-      <div className="max-w-5xl mx-auto w-full relative z-10">
+    <div className="min-h-screen bg-slate-50 text-slate-900 p-6 md:p-12 flex flex-col justify-between font-sans selection:bg-slate-900 selection:text-white">
+      <div className="max-w-4xl mx-auto w-full">
         
         {/* Cabecera Principal */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between pb-8 border-b border-slate-800/80 gap-6">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-3xl bg-gradient-to-tr from-teal-400 via-teal-500 to-emerald-400 p-0.5 shadow-2xl shadow-teal-500/20">
-              <div className="h-full w-full bg-slate-950 rounded-[22px] flex items-center justify-center">
-                <Store className="h-8 w-8 text-teal-400 stroke-[2.2]" />
-              </div>
+        <header className="flex flex-col md:flex-row md:items-center justify-between pb-8 border-b border-slate-200 gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="h-14 w-14 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
+              <Store className="h-7 w-7 stroke-[2.2]" />
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-3xl font-black tracking-tight text-white">KIOSCO POS</h1>
-                <span className="bg-gradient-to-r from-teal-500/20 to-emerald-500/20 border border-teal-500/40 text-teal-300 text-xs px-3 py-1 rounded-full font-black tracking-wide">
-                  v2.0 PRO
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900">KIOSCO POS</h1>
+                <span className="bg-slate-100 border border-slate-200 text-slate-700 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                  v2.0
                 </span>
               </div>
-              <p className="text-sm text-slate-400 mt-0.5">
-                Menú QR Autónomo • Supabase Realtime • Impresión Térmica USB ESC/POS
+              <p className="text-xs text-slate-500 mt-0.5">
+                Menú Digital QR • Panel de Control • Impresión Térmica
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            <div className="px-3.5 py-2 rounded-2xl border font-bold flex items-center gap-2 bg-emerald-950/40 border-emerald-500/40 text-emerald-400 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+            <div className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-semibold flex items-center gap-1.5 text-emerald-700 shadow-xs">
               <Database className="h-4 w-4" />
-              <span>Base de Datos: ACTIVA</span>
+              <span>Supabase DB: Conectada</span>
             </div>
 
-            <div className={`px-3.5 py-2 rounded-2xl border font-bold flex items-center gap-2 ${
+            <div className={`px-3 py-1.5 rounded-lg border font-semibold flex items-center gap-1.5 shadow-xs ${
               printServerReady 
-                ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-400" 
-                : "bg-slate-900 border-slate-800 text-slate-400"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800" 
+                : "bg-white border-slate-200 text-slate-500"
             }`}>
               <Printer className="h-4 w-4" />
-              <span>Print Agent: {printServerReady ? "ONLINE (5000)" : "LOCAL 5000"}</span>
+              <span>Impresora: {printServerReady ? "Activa (5000)" : "Local 5000"}</span>
             </div>
           </div>
         </header>
 
-        {/* Acceso a las 2 Vistas Principales */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
+        {/* Las 2 Vistas Principales */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
           
-          {/* Tarjeta Menú Digital QR */}
-          <div className="bg-slate-900/60 border border-slate-800/80 hover:border-teal-500/50 transition-all duration-300 rounded-3xl p-7 flex flex-col justify-between group shadow-xl relative overflow-hidden backdrop-blur-sm">
+          {/* Tarjeta Menú QR Cliente */}
+          <div className="bg-white border border-slate-200 hover:border-slate-300 transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xs">
             <div>
-              <div className="flex items-center justify-between mb-5">
-                <div className="h-12 w-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
-                  <Smartphone className="h-6 w-6" />
+              <div className="flex items-center justify-between mb-4">
+                <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800">
+                  <Smartphone className="h-5 w-5" />
                 </div>
-                <span className="text-xs font-black uppercase tracking-wider text-teal-400 bg-teal-500/10 px-3 py-1 rounded-full border border-teal-500/20">
-                  Clientes (Móvil)
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
+                  Para Clientes (Móvil)
                 </span>
               </div>
               
-              <h2 className="text-2xl font-black text-white mb-2 group-hover:text-teal-300 transition-colors">
+              <h2 className="text-xl font-bold text-slate-900 mb-1.5">
                 Menú Digital QR
               </h2>
-              <p className="text-slate-400 text-sm mb-6 leading-relaxed">
-                El cliente escanea el código, escribe su nombre, navega el catálogo en vivo con descuento automático de stock y genera su ticket digital.
+              <p className="text-slate-500 text-xs mb-5 leading-relaxed">
+                El cliente escanea el QR desde su celular, pide sus productos y recibe su comprobante digital para acercarse al mostrador.
               </p>
 
-              {/* Generador de QR en Vivo */}
-              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80 flex items-center gap-4 mb-6 shadow-inner">
-                <div className="bg-white p-2 rounded-xl shrink-0 shadow-md">
+              {/* QR en Vivo */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center gap-4 mb-6">
+                <div className="bg-white p-2 rounded-lg border border-slate-200 shrink-0 shadow-xs">
                   <img src={qrApiUrl} alt="QR del Menú" className="w-20 h-20" />
                 </div>
-                <div className="text-xs text-slate-400 flex-1 min-w-0">
-                  <p className="font-bold text-slate-200 mb-1 flex items-center gap-1.5">
-                    <QrCode className="h-4 w-4 text-teal-400" /> Código QR Listo
+                <div className="text-xs text-slate-500 flex-1 min-w-0">
+                  <p className="font-bold text-slate-800 mb-1 flex items-center gap-1">
+                    <QrCode className="h-4 w-4" /> Código QR Activo
                   </p>
-                  <p className="truncate text-teal-400 font-mono text-[11px] mb-2 bg-slate-900 p-1.5 rounded-lg border border-slate-800">
+                  <p className="truncate text-slate-700 font-mono text-[11px] mb-2 bg-white p-1 rounded border border-slate-200">
                     {menuUrl}
                   </p>
                   <a
                     href={qrApiUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] text-teal-400 hover:text-teal-300 font-bold"
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-900 font-bold hover:underline"
                   >
                     <Download className="h-3 w-3" /> Descargar imagen QR
                   </a>
@@ -136,79 +127,78 @@ export default function HomePage() {
 
             <Link
               href="/menu"
-              className="w-full bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-black py-4 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl shadow-teal-500/20 active:scale-[0.98]"
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm shadow-xs transition active:scale-[0.99]"
             >
-              <span>Abrir Menú Móvil</span>
-              <ArrowRight className="h-4 w-4 stroke-[2.5]" />
+              <span>Abrir Menú de Clientes</span>
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
-          {/* Tarjeta Panel del Operador */}
-          <div className="bg-slate-900/60 border border-slate-800/80 hover:border-amber-500/50 transition-all duration-300 rounded-3xl p-7 flex flex-col justify-between group shadow-xl relative overflow-hidden backdrop-blur-sm">
+          {/* Tarjeta Monitor del Operador */}
+          <div className="bg-white border border-slate-200 hover:border-slate-300 transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xs">
             <div>
-              <div className="flex items-center justify-between mb-5">
-                <div className="h-12 w-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                  <Monitor className="h-6 w-6" />
+              <div className="flex items-center justify-between mb-4">
+                <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-800">
+                  <Monitor className="h-5 w-5" />
                 </div>
-                <span className="text-xs font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
-                  Caja / Mostrador (PC)
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
+                  Para el Mostrador (PC)
                 </span>
               </div>
 
-              <h2 className="text-2xl font-black text-white mb-2 group-hover:text-amber-300 transition-colors">
-                Monitor de Operador
+              <h2 className="text-xl font-bold text-slate-900 mb-1.5">
+                Monitor del Operador
               </h2>
-              <p className="text-slate-400 text-sm mb-6 leading-relaxed">
-                Pantalla en tiempo real con WebSockets para la PC del cajero. Recibe órdenes al instante con campanilla acústica, control de totales y botón de cobro e impresión térmica.
+              <p className="text-slate-500 text-xs mb-5 leading-relaxed">
+                Pantalla para la PC del kiosco. Recibe las compras de los clientes con aviso sonoro y emite los tickets térmicos con corte de papel.
               </p>
 
-              <div className="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80 space-y-2.5 mb-6 text-xs text-slate-300 shadow-inner">
-                <div className="flex items-center gap-2 text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>Suscripción Supabase Realtime WebSockets activa</span>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 mb-6 text-xs text-slate-600">
+                <div className="flex items-center gap-2 text-slate-800 font-medium">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Suscripción en tiempo real a nuevos pedidos</span>
                 </div>
-                <div className="flex items-center gap-2 text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>Alarma acústica automática integrada</span>
+                <div className="flex items-center gap-2 text-slate-800 font-medium">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Alarma auditiva automática integrada</span>
                 </div>
-                <div className="flex items-center gap-2 text-emerald-400">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <span>Disparo directo al Agente de Impresión Local</span>
+                <div className="flex items-center gap-2 text-slate-800 font-medium">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Emisión y corte directo en impresora física</span>
                 </div>
               </div>
             </div>
 
             <Link
               href="/operador"
-              className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black py-4 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-xl shadow-amber-500/20 active:scale-[0.98]"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-sm shadow-xs transition active:scale-[0.99]"
             >
               <span>Abrir Monitor de Caja</span>
-              <ArrowRight className="h-4 w-4 stroke-[2.5]" />
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
 
-        {/* Banner Informativo */}
-        <div className="mt-8 p-6 rounded-3xl bg-slate-900/40 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+        {/* Resumen del Flujo */}
+        <div className="mt-8 p-5 rounded-2xl bg-white border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 shrink-0">
-              <Sparkles className="h-5 w-5" />
+            <div className="h-9 w-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-white">Descuento Atómico de Stock Activo</h4>
-              <p className="text-xs text-slate-400">Los triggers plpgsql aseguran que el stock no se duplique ni se venda de más.</p>
+              <h4 className="text-sm font-bold text-slate-900">Descuento de Stock Automático</h4>
+              <p className="text-xs text-slate-500">Garantizado por PostgreSQL en Supabase sin ventas duplicadas.</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 text-xs font-bold text-teal-400 font-mono">
-            <span>PostgreSQL + Realtime</span>
-          </div>
+          <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg">
+            PostgreSQL • Realtime
+          </span>
         </div>
 
       </div>
 
-      <footer className="mt-12 text-center text-xs text-slate-600 border-t border-slate-900 pt-6">
-        Kiosco POS v2.0 • Diseñado para máxima velocidad, estética y fiabilidad
+      <footer className="mt-12 text-center text-xs text-slate-400 border-t border-slate-200 pt-5">
+        Kiosco POS v2.0 • Interfaz Clara, Sencilla y Moderna
       </footer>
     </div>
   );

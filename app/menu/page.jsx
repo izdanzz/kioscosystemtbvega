@@ -17,17 +17,13 @@ import {
   CreditCard,
   Banknote,
   Sparkles,
-  Flame,
   ChevronRight,
   ShieldCheck,
-  QrCode,
-  Share2,
   Trash2
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { playChimeSound } from "@/lib/sound";
 
-// Catálogo demo de respaldo ultra-estético
 const DEMO_CATEGORIAS = [
   { id: 1, nombre: "Bebidas", icono: "🥤" },
   { id: 2, nombre: "Snacks", icono: "🍟" },
@@ -36,18 +32,18 @@ const DEMO_CATEGORIAS = [
 ];
 
 const DEMO_PRODUCTOS = [
-  { id: 1, categoria_id: 1, nombre: "Coca Cola 500ml", descripcion: "Botella descartable bien fría", precio: 1500, stock: 24, activo: true, imagen_url: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop&q=80", tag: "Más Vendido" },
-  { id: 2, categoria_id: 1, nombre: "Agua Mineral 500ml", descripcion: "Glaciar con o sin gas fresca", precio: 900, stock: 30, activo: true, imagen_url: "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=80" },
-  { id: 3, categoria_id: 1, nombre: "Monster Energy 473ml", descripcion: "Lata original clásica fría", precio: 2400, stock: 15, activo: true, imagen_url: "https://images.unsplash.com/photo-1622543925917-763c34d1a86e?w=500&auto=format&fit=crop&q=80", tag: "En Oferta" },
-  { id: 4, categoria_id: 2, nombre: "Papas Fritas Lays 95g", descripcion: "Clásicas crocantes y saladas", precio: 1600, stock: 20, activo: true, imagen_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop&q=80" },
-  { id: 5, categoria_id: 2, nombre: "Doritos Mega Queso 90g", descripcion: "Triángulos de maíz crocantes", precio: 1900, stock: 12, activo: true, imagen_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop&q=80" },
-  { id: 6, categoria_id: 3, nombre: "Alfajor Havanna Cacao", descripcion: "Doble chocolate con dulce de leche", precio: 1400, stock: 30, activo: true, imagen_url: "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=500&auto=format&fit=crop&q=80", tag: "Favorito" },
-  { id: 7, categoria_id: 3, nombre: "Chocolate Milka Oreo", descripcion: "Chocolate con leche suizo 100g", precio: 2200, stock: 10, activo: true, imagen_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=500&auto=format&fit=crop&q=80" },
-  { id: 8, categoria_id: 4, nombre: "Sandwich Jamón y Queso", descripcion: "Pan de miga triple recién hecho", precio: 2200, stock: 8, activo: true, imagen_url: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=500&auto=format&fit=crop&q=80", tag: "Fresco" },
+  { id: 1, categoria_id: 1, nombre: "Coca Cola 500ml", descripcion: "Botella descartable fría", precio: 1500, stock: 24, activo: true, imagen_url: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop&q=80" },
+  { id: 2, categoria_id: 1, nombre: "Agua Mineral 500ml", descripcion: "Con o sin gas fresca", precio: 900, stock: 30, activo: true, imagen_url: "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=80" },
+  { id: 3, categoria_id: 1, nombre: "Energizante Monster 473ml", descripcion: "Lata original clásica", precio: 2400, stock: 15, activo: true, imagen_url: "https://images.unsplash.com/photo-1622543925917-763c34d1a86e?w=500&auto=format&fit=crop&q=80" },
+  { id: 4, categoria_id: 2, nombre: "Papas Fritas Lays 95g", descripcion: "Clásicas crocantes con sal", precio: 1600, stock: 20, activo: true, imagen_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop&q=80" },
+  { id: 5, categoria_id: 2, nombre: "Doritos Mega Queso 90g", descripcion: "Triángulos crujientes de maíz", precio: 1900, stock: 12, activo: true, imagen_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop&q=80" },
+  { id: 6, categoria_id: 3, nombre: "Alfajor Havanna Cacao", descripcion: "Chocolate y dulce de leche", precio: 1400, stock: 30, activo: true, imagen_url: "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=500&auto=format&fit=crop&q=80" },
+  { id: 7, categoria_id: 3, nombre: "Chocolate Milka Oreo", descripcion: "Tableta con galletita Oreo 100g", precio: 2200, stock: 10, activo: true, imagen_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=500&auto=format&fit=crop&q=80" },
+  { id: 8, categoria_id: 4, nombre: "Sandwich Jamón y Queso", descripcion: "Pan de miga fresco del día", precio: 2200, stock: 8, activo: true, imagen_url: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=500&auto=format&fit=crop&q=80" },
 ];
 
 export default function MenuCliente() {
-  const [paso, setPaso] = useState("registro"); // 'registro' | 'menu' | 'comprobante'
+  const [paso, setPaso] = useState("registro");
   const [nombre, setNombre] = useState("");
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -92,7 +88,7 @@ export default function MenuCliente() {
           return;
         }
       } catch (err) {
-        console.warn("Fallo lectura Supabase, usando catálogo local:", err);
+        console.warn("Fallo lectura Supabase:", err);
       }
     }
 
@@ -104,7 +100,7 @@ export default function MenuCliente() {
   const iniciarCompra = (e) => {
     e.preventDefault();
     if (!nombre.trim()) {
-      setErrorMensaje("Por favor dinos tu nombre para comenzar tu orden.");
+      setErrorMensaje("Por favor escribe tu nombre para comenzar.");
       return;
     }
     setErrorMensaje("");
@@ -119,7 +115,7 @@ export default function MenuCliente() {
     const cantidadActual = itemActual ? itemActual.cantidad : 0;
 
     if (cantidadActual >= producto.stock) {
-      alert(`⚠️ Solo quedan ${producto.stock} unidades disponibles de este producto.`);
+      alert(`Quedan solo ${producto.stock} unidades disponibles.`);
       return;
     }
 
@@ -150,10 +146,8 @@ export default function MenuCliente() {
   };
 
   const vaciarCarrito = () => {
-    if (confirm("¿Deseas vaciar el carrito?")) {
-      setCarrito([]);
-      setMostrarCarritoModal(false);
-    }
+    setCarrito([]);
+    setMostrarCarritoModal(false);
   };
 
   const totalCarrito = carrito.reduce(
@@ -220,10 +214,9 @@ export default function MenuCliente() {
 
       playChimeSound();
       confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ["#14b8a6", "#f59e0b", "#10b981", "#6366f1"]
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
       });
 
       setCarrito([]);
@@ -248,173 +241,153 @@ export default function MenuCliente() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center selection:bg-teal-500 selection:text-slate-950 font-sans">
-      <div className="w-full max-w-md bg-slate-900/90 border-x border-slate-800/80 min-h-screen flex flex-col relative shadow-[0_0_50px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col items-center selection:bg-slate-900 selection:text-white">
+      <div className="w-full max-w-md bg-white border-x border-slate-200 min-h-screen flex flex-col shadow-sm">
         
         {/* =========================================
-            PASO 1: REGISTRO VISUAL ULTRA ELEGANTE
+            PASO 1: BIENVENIDA CLARA Y SENCILLA
             ========================================= */}
         {paso === "registro" && (
-          <div className="flex-1 flex flex-col justify-between p-6 relative overflow-hidden">
-            {/* Glow decorativo de fondo */}
-            <div className="absolute -top-24 -left-24 w-72 h-72 bg-teal-500/15 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
-
-            <div className="pt-12 flex flex-col items-center text-center relative z-10">
-              <div className="relative mb-6">
-                <div className="h-24 w-24 rounded-3xl bg-gradient-to-tr from-teal-400 via-teal-500 to-emerald-400 p-0.5 shadow-2xl shadow-teal-500/30 flex items-center justify-center">
-                  <div className="h-full w-full bg-slate-950 rounded-[22px] flex items-center justify-center">
-                    <Store className="h-12 w-12 text-teal-400 stroke-[2.2]" />
-                  </div>
-                </div>
-                <span className="absolute -top-1 -right-1 bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow-md uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" /> ABIERTO
-                </span>
+          <div className="flex-1 flex flex-col justify-between p-6">
+            <div className="pt-12 text-center">
+              <div className="h-16 w-16 mx-auto rounded-2xl bg-slate-900 text-white flex items-center justify-center mb-5 shadow-sm">
+                <Store className="h-8 w-8 stroke-[2.2]" />
               </div>
-
-              <h1 className="text-3xl font-black text-white tracking-tight">
-                Kiosco Digital
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                Kiosco • Pedidos al Paso
               </h1>
-              <p className="text-slate-400 text-sm mt-2 max-w-xs leading-relaxed">
-                Ordena tus productos favoritos desde tu móvil y retira en caja sin filas.
+              <p className="text-slate-500 text-sm mt-1.5 max-w-xs mx-auto">
+                Elige tus productos desde tu celular y retira en caja sin hacer fila.
               </p>
             </div>
 
-            <form onSubmit={iniciarCompra} className="space-y-4 my-8 bg-slate-950/70 p-6 rounded-3xl border border-slate-800/80 shadow-2xl relative z-10">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-teal-400">
-                  ¿Cómo te llamas?
+            <form onSubmit={iniciarCompra} className="my-8 bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Tu Nombre
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. Valentina Morales"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700/80 focus:border-teal-400 focus:ring-4 focus:ring-teal-500/20 text-white rounded-2xl px-5 py-4 text-base font-semibold outline-none transition placeholder:text-slate-600 text-center shadow-inner"
-                    autoFocus
-                  />
-                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Juan Pérez"
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  className="w-full bg-white border border-slate-300 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 text-slate-900 rounded-xl px-4 py-3.5 text-base font-medium outline-none transition placeholder:text-slate-400 text-center"
+                  autoFocus
+                />
               </div>
 
-              <p className="text-[11px] text-slate-500 text-center">
-                El cajero te llamará por este nombre cuando tu orden esté lista.
+              <p className="text-xs text-slate-500 text-center">
+                Te llamaremos por tu nombre en el mostrador cuando tu orden esté lista.
               </p>
 
               {errorMensaje && (
-                <div className="p-3 bg-rose-950/60 border border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{errorMensaje}</span>
                 </div>
               )}
 
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-black py-4 px-6 rounded-2xl text-base flex items-center justify-center gap-2.5 transition-all shadow-xl shadow-teal-500/25 active:scale-[0.98] group"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] shadow-sm"
               >
-                <span>Entrar al Menú</span>
-                <ArrowRight className="h-5 w-5 stroke-[2.5] group-hover:translate-x-1 transition-transform" />
+                <span>Ver Menú de Productos</span>
+                <ArrowRight className="h-4 w-4" />
               </button>
             </form>
 
-            <div className="text-center pb-4 text-[11px] text-slate-600 flex items-center justify-center gap-2">
-              <ShieldCheck className="h-3.5 w-3.5 text-teal-500" />
-              <span>Menú Oficial • Stock en Tiempo Real</span>
+            <div className="text-center pb-4 text-xs text-slate-400">
+              Menú Digital • Stock en tiempo real
             </div>
           </div>
         )}
 
         {/* =========================================
-            PASO 2: CATÁLOGO DE PRODUCTOS ESTILO S-TIER
+            PASO 2: MENÚ CLARO Y FÁCIL DE VER
             ========================================= */}
         {paso === "menu" && (
-          <div className="flex-1 flex flex-col pb-28">
-            {/* Header Sticky */}
-            <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 px-4 pt-3.5 pb-2.5 shadow-lg">
+          <div className="flex-1 flex flex-col pb-24">
+            
+            {/* Cabecera Fija Blanca */}
+            <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-4 pt-3.5 pb-2.5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-9 w-9 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
-                    <Store className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-teal-400 uppercase tracking-widest block">
-                      HOLA, {nombre.toUpperCase()} 👋
-                    </span>
-                    <h2 className="text-base font-black text-white leading-tight">Menú de Kiosco</h2>
-                  </div>
+                <div>
+                  <span className="text-xs font-semibold text-slate-500 block">
+                    Hola, <strong className="text-slate-900">{nombre}</strong> 👋
+                  </span>
+                  <h2 className="text-lg font-bold text-slate-900">Menú del Kiosco</h2>
                 </div>
 
                 <button
                   onClick={() => setMostrarCarritoModal(true)}
-                  className="relative p-2.5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-teal-500/50 transition-all text-slate-200 active:scale-95 shadow-md"
+                  className="relative p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition active:scale-95"
+                  title="Ver carrito"
                 >
-                  <ShoppingBag className="h-5 w-5 text-teal-400" />
+                  <ShoppingBag className="h-5 w-5" />
                   {totalArticulos > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 text-[10px] font-black h-5 w-5 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/40 animate-bounce">
+                    <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-[11px] font-bold h-5 w-5 rounded-full flex items-center justify-center shadow">
                       {totalArticulos}
                     </span>
                   )}
                 </button>
               </div>
 
-              {/* Buscador Moderno */}
+              {/* Buscador Simple */}
               <div className="relative mb-2.5">
-                <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+                <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Buscar chocolates, bebidas, snacks..."
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  className="w-full bg-slate-900/90 border border-slate-800 focus:border-teal-500/80 focus:ring-2 focus:ring-teal-500/20 rounded-2xl pl-10 pr-9 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition"
+                  className="w-full bg-slate-100 border border-slate-200 focus:bg-white focus:border-slate-400 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition"
                 />
                 {busqueda && (
                   <button
                     onClick={() => setBusqueda("")}
-                    className="absolute right-3 top-2.5 text-slate-500 hover:text-white"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 )}
               </div>
 
-              {/* Categorías Scrolleables */}
-              <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar scroll-smooth">
+              {/* Chips de Categorías */}
+              <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar">
                 <button
                   onClick={() => setCategoriaSeleccionada("todas")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                     categoriaSeleccionada === "todas"
-                      ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-950 shadow-lg shadow-teal-500/25"
-                      : "bg-slate-900 border border-slate-800/80 text-slate-400 hover:text-slate-200"
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  <span>✨</span>
-                  <span>Todos</span>
+                  Todos
                 </button>
                 {categorias.map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setCategoriaSeleccionada(cat.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
                       String(categoriaSeleccionada) === String(cat.id)
-                        ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-950 shadow-lg shadow-teal-500/25"
-                        : "bg-slate-900 border border-slate-800/80 text-slate-400 hover:text-slate-200"
+                        ? "bg-slate-900 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
-                    <span>{cat.icono || "🏷️"}</span>
-                    <span>{cat.nombre}</span>
+                    {cat.nombre}
                   </button>
                 ))}
               </div>
             </header>
 
             {/* Listado de Productos */}
-            <main className="flex-1 p-4 space-y-3">
+            <main className="flex-1 p-4 space-y-3 bg-slate-50">
               {productosFiltrados.length === 0 ? (
-                <div className="text-center py-20 text-slate-500">
-                  <ShoppingBag className="h-12 w-12 mx-auto stroke-1 mb-3 text-slate-600" />
-                  <p className="font-bold text-slate-400 text-sm">No encontramos productos</p>
-                  <p className="text-xs text-slate-600 mt-1">Prueba cambiando el filtro o la búsqueda</p>
+                <div className="text-center py-16 text-slate-400">
+                  <ShoppingBag className="h-10 w-10 mx-auto stroke-1 mb-2 text-slate-300" />
+                  <p className="font-semibold text-slate-600 text-sm">No encontramos productos</p>
+                  <p className="text-xs text-slate-400 mt-1">Intenta con otra búsqueda o categoría</p>
                 </div>
               ) : (
                 productosFiltrados.map((prod) => {
@@ -425,82 +398,75 @@ export default function MenuCliente() {
                   return (
                     <div
                       key={prod.id}
-                      className="bg-slate-950/80 border border-slate-800/80 hover:border-teal-500/40 rounded-2xl p-3 flex gap-3.5 items-center transition-all duration-200 shadow-sm relative group overflow-hidden"
+                      className="bg-white border border-slate-200 rounded-xl p-3 flex gap-3.5 items-center shadow-sm"
                     >
-                      {/* Imagen con Badges */}
-                      <div className="h-20 w-20 rounded-xl bg-slate-900 overflow-hidden shrink-0 border border-slate-800 flex items-center justify-center relative">
+                      {/* Imagen Simple */}
+                      <div className="h-18 w-18 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center relative">
                         {prod.imagen_url ? (
                           <img
                             src={prod.imagen_url}
                             alt={prod.nombre}
-                            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            className="h-full w-full object-cover"
                             loading="lazy"
                             onError={(e) => {
                               e.currentTarget.style.display = "none";
                             }}
                           />
                         ) : (
-                          <Store className="h-6 w-6 text-slate-700" />
+                          <Store className="h-6 w-6 text-slate-400" />
                         )}
-
-                        {prod.tag && (
-                          <span className="absolute top-1 left-1 bg-amber-500 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded-md shadow">
-                            {prod.tag}
-                          </span>
-                        )}
-
-                        {prod.stock <= 5 && prod.stock > 0 && !prod.tag && (
-                          <span className="absolute bottom-1 right-1 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow">
+                        {prod.stock <= 4 && prod.stock > 0 && (
+                          <span className="absolute bottom-1 right-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
                             Quedan {prod.stock}
                           </span>
                         )}
                       </div>
 
-                      {/* Detalles */}
+                      {/* Información */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-white text-sm truncate leading-snug">{prod.nombre}</h3>
+                        <h3 className="font-bold text-slate-900 text-sm truncate">{prod.nombre}</h3>
                         {prod.descripcion && (
-                          <p className="text-[11px] text-slate-400 truncate mt-0.5">{prod.descripcion}</p>
+                          <p className="text-xs text-slate-500 truncate mt-0.5">{prod.descripcion}</p>
                         )}
-                        <div className="flex items-baseline gap-2 mt-2">
-                          <span className="text-base font-black text-teal-400">
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-base font-bold text-slate-900">
                             ${Number(prod.precio).toLocaleString("es-AR")}
                           </span>
-                          <span className="text-[10px] text-slate-500 font-medium">
+                          <span className="text-[11px] text-slate-400">
                             Stock: {prod.stock}
                           </span>
                         </div>
                       </div>
 
-                      {/* Botón interactivo de cantidad */}
+                      {/* Botones de Cantidad */}
                       <div className="shrink-0">
                         {cantidad > 0 ? (
-                          <div className="flex items-center gap-1.5 bg-slate-900 border border-teal-500/50 rounded-xl p-1 shadow-md">
+                          <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-300 rounded-lg p-1">
                             <button
                               onClick={() => restarDelCarrito(prod.id)}
-                              className="h-7 w-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center active:scale-95 transition"
+                              className="h-7 w-7 rounded bg-white text-slate-800 shadow-sm flex items-center justify-center font-bold hover:bg-slate-50 active:scale-95"
                             >
                               <Minus className="h-3.5 w-3.5" />
                             </button>
-                            <span className="w-5 text-center font-black text-xs text-teal-300">
+                            <span className="w-5 text-center font-bold text-xs text-slate-900">
                               {cantidad}
                             </span>
                             <button
                               onClick={() => agregarAlCarrito(prod)}
                               disabled={cantidad >= prod.stock}
-                              className="h-7 w-7 rounded-lg bg-teal-500 text-slate-950 hover:bg-teal-400 disabled:opacity-40 flex items-center justify-center active:scale-95 transition font-bold"
+                              className="h-7 w-7 rounded bg-slate-900 text-white shadow-sm flex items-center justify-center font-bold hover:bg-slate-800 disabled:opacity-40 active:scale-95"
                             >
-                              <Plus className="h-3.5 w-3.5 stroke-[3]" />
+                              <Plus className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         ) : (
                           <button
                             onClick={() => agregarAlCarrito(prod)}
                             disabled={sinStock}
-                            className="px-3.5 py-2 rounded-xl bg-teal-500/15 border border-teal-500/30 hover:bg-teal-500 hover:text-slate-950 text-teal-300 font-bold text-xs flex items-center gap-1.5 transition active:scale-95 disabled:opacity-40 shadow-sm"
+                            className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition active:scale-95 disabled:opacity-40"
                           >
-                            <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-                            <span>Pedir</span>
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>Agregar</span>
                           </button>
                         )}
                       </div>
@@ -510,24 +476,24 @@ export default function MenuCliente() {
               )}
             </main>
 
-            {/* Barra Inferior Flotante de Carrito */}
+            {/* Barra Flotante Inferior de Carrito */}
             {totalArticulos > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-4 z-40 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent pt-8">
+              <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-4 z-40 bg-gradient-to-t from-white via-white/95 to-transparent pt-6">
                 <button
                   onClick={() => setMostrarCarritoModal(true)}
-                  className="w-full bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-black py-4 px-5 rounded-2xl flex items-center justify-between shadow-2xl shadow-teal-500/30 active:scale-[0.99] transition-all group"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl flex items-center justify-between shadow-lg active:scale-[0.99] transition"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="bg-slate-950 text-teal-300 text-xs px-2.5 py-1 rounded-xl font-black shadow-inner">
-                      {totalArticulos} {totalArticulos === 1 ? "ítem" : "ítems"}
+                  <div className="flex items-center gap-2.5">
+                    <span className="bg-slate-800 text-white text-xs px-2.5 py-1 rounded-md font-bold">
+                      {totalArticulos} {totalArticulos === 1 ? "producto" : "productos"}
                     </span>
-                    <span className="text-sm font-bold">Ver Mi Carrito</span>
+                    <span className="text-sm">Ver Carrito</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-lg font-black tracking-tight">
+                  <div className="flex items-center gap-1">
+                    <span className="text-base font-bold">
                       ${totalCarrito.toLocaleString("es-AR")}
                     </span>
-                    <ChevronRight className="h-5 w-5 stroke-[3] group-hover:translate-x-1 transition-transform" />
+                    <ChevronRight className="h-4 w-4" />
                   </div>
                 </button>
               </div>
@@ -536,71 +502,64 @@ export default function MenuCliente() {
         )}
 
         {/* =========================================
-            MODAL DRAWER: REVISIÓN DE PEDIDO
+            MODAL CARRITO CLARO Y LIMPIO
             ========================================= */}
         {mostrarCarritoModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex justify-center items-end sm:items-center p-0 sm:p-4 animate-in fade-in duration-200">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-300">
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex justify-center items-end sm:items-center p-0 sm:p-4">
+            <div className="bg-white border border-slate-200 w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
               
-              {/* Header Modal */}
-              <div className="p-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/50">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400">
-                    <ShoppingBag className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-white text-sm">Resumen de tu Pedido</h3>
-                    <p className="text-[11px] text-slate-400">{nombre}</p>
-                  </div>
+                  <ShoppingBag className="h-5 w-5 text-slate-800" />
+                  <h3 className="font-bold text-slate-900 text-base">Tu Pedido</h3>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={vaciarCarrito}
-                    className="p-2 text-slate-400 hover:text-rose-400 transition"
+                    className="p-1.5 text-slate-400 hover:text-red-600 transition"
                     title="Vaciar carrito"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setMostrarCarritoModal(false)}
-                    className="p-2 rounded-xl text-slate-400 hover:text-white"
+                    className="p-1.5 text-slate-400 hover:text-slate-800"
                   >
                     <X className="h-5 w-5" />
                   </button>
                 </div>
               </div>
 
-              {/* Items */}
-              <div className="p-4 flex-1 overflow-y-auto space-y-3 divide-y divide-slate-800/60">
+              <div className="p-4 flex-1 overflow-y-auto space-y-3 divide-y divide-slate-100">
                 {carrito.map((item) => (
                   <div key={item.id} className="pt-3 first:pt-0 flex items-center justify-between">
                     <div>
-                      <h4 className="font-bold text-sm text-white">{item.nombre}</h4>
-                      <p className="text-xs text-slate-400">
+                      <h4 className="font-bold text-sm text-slate-900">{item.nombre}</h4>
+                      <p className="text-xs text-slate-500">
                         ${Number(item.precio).toLocaleString("es-AR")} c/u
                       </p>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl p-1">
+                      <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg p-1">
                         <button
                           onClick={() => restarDelCarrito(item.id)}
-                          className="h-6 w-6 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center active:scale-95"
+                          className="h-6 w-6 rounded bg-white text-slate-700 shadow-xs flex items-center justify-center font-bold"
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="w-5 text-center font-bold text-xs text-teal-300">
+                        <span className="w-5 text-center font-bold text-xs text-slate-900">
                           {item.cantidad}
                         </span>
                         <button
                           onClick={() => agregarAlCarrito(item)}
                           disabled={item.cantidad >= item.stock}
-                          className="h-6 w-6 rounded-lg bg-teal-500 text-slate-950 disabled:opacity-40 flex items-center justify-center font-bold active:scale-95"
+                          className="h-6 w-6 rounded bg-slate-900 text-white shadow-xs flex items-center justify-center font-bold disabled:opacity-40"
                         >
-                          <Plus className="h-3 w-3 stroke-[3]" />
+                          <Plus className="h-3 w-3" />
                         </button>
                       </div>
-                      <span className="font-black text-sm text-teal-400 w-16 text-right">
+                      <span className="font-bold text-sm text-slate-900 w-16 text-right">
                         ${(Number(item.precio) * item.cantidad).toLocaleString("es-AR")}
                       </span>
                     </div>
@@ -609,17 +568,17 @@ export default function MenuCliente() {
 
                 {/* Forma de Pago */}
                 <div className="pt-4 space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                  <label className="text-xs font-bold uppercase text-slate-600 block">
                     Forma de Pago en Caja
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setMetodoPago("efectivo")}
-                      className={`p-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
                         metodoPago === "efectivo"
-                          ? "bg-teal-500/10 border-teal-500 text-teal-400 shadow-sm"
-                          : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                          ? "bg-slate-900 border-slate-900 text-white"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
                       }`}
                     >
                       <Banknote className="h-4 w-4" />
@@ -628,10 +587,10 @@ export default function MenuCliente() {
                     <button
                       type="button"
                       onClick={() => setMetodoPago("transferencia")}
-                      className={`p-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
                         metodoPago === "transferencia"
-                          ? "bg-teal-500/10 border-teal-500 text-teal-400 shadow-sm"
-                          : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white"
+                          ? "bg-slate-900 border-slate-900 text-white"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
                       }`}
                     >
                       <CreditCard className="h-4 w-4" />
@@ -640,29 +599,27 @@ export default function MenuCliente() {
                   </div>
                 </div>
 
-                {/* Nota para el cajero */}
                 <div className="pt-3">
                   <input
                     type="text"
-                    placeholder="¿Alguna aclaración? (Ej. coca sin azúcar)"
+                    placeholder="Aclaración adicional (opcional)"
                     value={notas}
                     onChange={(e) => setNotas(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-teal-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-600 outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-slate-400 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none"
                   />
                 </div>
               </div>
 
-              {/* Total y Confirmar */}
-              <div className="p-4 border-t border-slate-800/80 bg-slate-950 space-y-3">
+              <div className="p-4 border-t border-slate-200 bg-slate-50 space-y-3">
                 <div className="flex justify-between items-baseline">
-                  <span className="text-xs uppercase font-bold text-slate-400">Total a Pagar</span>
-                  <span className="text-2xl font-black text-teal-400">
+                  <span className="text-xs uppercase font-bold text-slate-500">Total a Pagar</span>
+                  <span className="text-2xl font-bold text-slate-900">
                     ${totalCarrito.toLocaleString("es-AR")}
                   </span>
                 </div>
 
                 {errorMensaje && (
-                  <div className="p-2.5 bg-rose-950/60 border border-rose-500/40 rounded-xl text-xs text-rose-300">
+                  <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">
                     {errorMensaje}
                   </div>
                 )}
@@ -670,17 +627,14 @@ export default function MenuCliente() {
                 <button
                   onClick={enviarPedido}
                   disabled={cargando}
-                  className="w-full bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-500 hover:from-teal-300 hover:to-emerald-400 text-slate-950 font-black py-4 px-6 rounded-2xl text-base flex items-center justify-center gap-2 shadow-xl shadow-teal-500/25 active:scale-[0.98] disabled:opacity-50"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] disabled:opacity-50"
                 >
                   {cargando ? (
-                    <span className="flex items-center gap-2 font-bold">
-                      <span className="h-4 w-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
-                      Enviando a Caja...
-                    </span>
+                    <span>Enviando orden a caja...</span>
                   ) : (
                     <>
-                      <span>Confirmar Orden</span>
-                      <ArrowRight className="h-5 w-5 stroke-[2.5]" />
+                      <span>Confirmar Pedido</span>
+                      <ArrowRight className="h-4 w-4" />
                     </>
                   )}
                 </button>
@@ -690,50 +644,48 @@ export default function MenuCliente() {
         )}
 
         {/* =========================================
-            PASO 3: TICKET DIGITAL TIPO RECIBO FÍSICO
+            PASO 3: COMPROBANTE TIPO TICKET DE PAPEL
             ========================================= */}
         {paso === "comprobante" && pedidoGuardado && (
-          <div className="flex-1 flex flex-col justify-between p-6">
+          <div className="flex-1 flex flex-col justify-between p-6 bg-slate-50">
             <div className="pt-6 flex flex-col items-center">
-              <div className="h-16 w-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500 text-emerald-400 flex items-center justify-center mb-3 shadow-lg shadow-emerald-500/20 animate-in zoom-in duration-300">
-                <Check className="h-8 w-8 stroke-[3]" />
+              <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
+                <Check className="h-7 w-7 stroke-[2.5]" />
               </div>
 
-              <h2 className="text-2xl font-black text-white text-center">
-                ¡Orden Recibida!
+              <h2 className="text-2xl font-bold text-slate-900 text-center">
+                ¡Pedido Enviado!
               </h2>
-              <p className="text-slate-400 text-xs mt-1 text-center">
-                Acércate al mostrador de caja con este número de orden.
+              <p className="text-slate-500 text-xs mt-1 text-center">
+                Acércate a la caja para abonar y retirar.
               </p>
 
-              {/* Tarjeta Simulación Recibo */}
-              <div className="w-full mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-teal-400 to-emerald-500" />
-
-                <div className="flex justify-between items-start border-b border-dashed border-slate-800 pb-4 mb-4">
+              {/* Tarjeta Recibo de Papel */}
+              <div className="w-full mt-6 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                <div className="flex justify-between items-start border-b border-dashed border-slate-200 pb-3 mb-3">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">
-                      TICKET DE CAJA
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      NÚMERO DE ORDEN
                     </span>
-                    <span className="text-3xl font-black text-amber-400">
+                    <span className="text-3xl font-black text-slate-900">
                       #{pedidoGuardado.id}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                       CLIENTE
                     </span>
-                    <span className="text-base font-bold text-white capitalize">
+                    <span className="text-base font-bold text-slate-900 capitalize">
                       {pedidoGuardado.cliente_nombre}
                     </span>
                   </div>
                 </div>
 
-                <div className="space-y-2 border-b border-dashed border-slate-800 pb-4 mb-4 text-xs">
+                <div className="space-y-2 border-b border-dashed border-slate-200 pb-3 mb-3 text-xs">
                   {pedidoGuardado.items?.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-slate-300">
+                    <div key={idx} className="flex justify-between text-slate-700">
                       <span>{item.cantidad}x {item.nombre}</span>
-                      <span className="font-semibold text-slate-100 font-mono">
+                      <span className="font-bold text-slate-900">
                         ${(Number(item.precio) * item.cantidad).toLocaleString("es-AR")}
                       </span>
                     </div>
@@ -741,30 +693,28 @@ export default function MenuCliente() {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-xs uppercase font-bold text-slate-400">Total a Abonar</span>
-                  <span className="text-2xl font-black text-emerald-400">
+                  <span className="text-xs uppercase font-bold text-slate-500">Total a Cobrar</span>
+                  <span className="text-2xl font-bold text-emerald-700">
                     ${Number(pedidoGuardado.total).toLocaleString("es-AR")}
                   </span>
                 </div>
 
-                <div className="mt-4 p-3 rounded-2xl bg-slate-950 border border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
+                <div className="mt-4 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 flex justify-between">
                   <span>Pago:</span>
-                  <span className="font-bold text-teal-400 uppercase tracking-wider">
-                    {pedidoGuardado.metodo_pago}
-                  </span>
+                  <span className="font-bold uppercase text-slate-900">{pedidoGuardado.metodo_pago}</span>
                 </div>
               </div>
             </div>
 
-            <div className="py-6 space-y-3">
+            <div className="py-6">
               <button
                 onClick={() => {
                   setPedidoGuardado(null);
                   setPaso("menu");
                 }}
-                className="w-full bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-bold py-3.5 px-4 rounded-2xl text-xs flex items-center justify-center gap-2 transition"
+                className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold py-3 px-4 rounded-xl text-xs transition"
               >
-                <span>Hacer un nuevo pedido</span>
+                Hacer otro pedido
               </button>
             </div>
           </div>
