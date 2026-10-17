@@ -23,7 +23,8 @@ import {
   Banknote, 
   CreditCard, 
   FileText,
-  AlertCircle
+  AlertCircle,
+  Image as ImageIcon
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { playChimeSound } from "@/lib/sound";
@@ -55,6 +56,25 @@ export default function PanelOperador() {
   const [modalProducto, setModalProducto] = useState(null);
   const [guardandoProd, setGuardandoProd] = useState(false);
 
+  // Helper de Formato Dominicano (DOP / RD$)
+  const formatDOP = (monto) => {
+    return "RD$ " + Number(monto || 0).toLocaleString("es-DO", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
+  // Fotos predeterminadas para selección rápida en 1 clic
+  const fotosPredefinidas = [
+    { label: "Refresco", url: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&auto=format&fit=crop&q=80" },
+    { label: "Agua", url: "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=400&auto=format&fit=crop&q=80" },
+    { label: "Cerveza", url: "https://images.unsplash.com/photo-1608270116666-68164380f839?w=400&auto=format&fit=crop&q=80" },
+    { label: "Café", url: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80" },
+    { label: "Papas / Snack", url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&auto=format&fit=crop&q=80" },
+    { label: "Sandwich", url: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400&auto=format&fit=crop&q=80" },
+    { label: "Golosina", url: "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=400&auto=format&fit=crop&q=80" }
+  ];
+
   useEffect(() => {
     verificarPrintServer();
     cargarPedidos();
@@ -65,7 +85,7 @@ export default function PanelOperador() {
     let canal = null;
     if (isSupabaseConfigured()) {
       canal = supabase
-        .channel("operador_realtime_channel_v3")
+        .channel("operador_realtime_channel_v4")
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "pedidos" },
@@ -320,7 +340,7 @@ export default function PanelOperador() {
 
   const guardarProductoModal = async (e) => {
     e.preventDefault();
-    if (!modalProducto.nombre.trim()) return alert("El nombre es obligatorio");
+    if (!modalProducto.nombre.trim()) return alert("El título o nombre es obligatorio");
     setGuardandoProd(true);
 
     try {
@@ -368,7 +388,7 @@ export default function PanelOperador() {
     }
   };
 
-  // Cálculos
+  // Métricas
   const pendientesCount = pedidos.filter((p) => p.estado === "pendiente").length;
   const cobradosHoy = pedidos.filter((p) => p.estado === "cobrado");
   const totalRecaudado = cobradosHoy.reduce((acc, p) => acc + Number(p.total), 0);
@@ -405,19 +425,22 @@ export default function PanelOperador() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-slate-900">TB La Vega • Caja</h1>
+                <h1 className="text-xl font-bold tracking-tight text-slate-900">TB La Vega • Mostrador</h1>
                 <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded-md font-bold">
                   En Vivo
                 </span>
+                <span className="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-md font-bold">
+                  DOP (RD$)
+                </span>
               </div>
-              <p className="text-xs text-slate-500">Panel de control de mostrador</p>
+              <p className="text-xs text-slate-500">Panel de control de caja e inventario</p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               onClick={() => setPestanaActiva("ordenes")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                 pestanaActiva === "ordenes"
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
@@ -428,21 +451,21 @@ export default function PanelOperador() {
             </button>
             <button
               onClick={() => setPestanaActiva("inventario")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                 pestanaActiva === "inventario"
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <Package className="h-4 w-4" />
-              <span>Inventario & Stock</span>
+              <span>Inventario, Fotos & Precios</span>
             </button>
           </div>
 
           <div className="flex items-center gap-2 text-xs">
             <button
               onClick={() => setSonidoHabilitado(!sonidoHabilitado)}
-              className={`p-2 rounded-lg border font-semibold flex items-center gap-1.5 transition ${
+              className={`p-2 rounded-lg border font-semibold flex items-center gap-1.5 transition cursor-pointer ${
                 sonidoHabilitado
                   ? "bg-slate-900 text-white border-slate-900"
                   : "bg-white border-slate-200 text-slate-500"
@@ -453,7 +476,7 @@ export default function PanelOperador() {
             </button>
             <button
               onClick={playChimeSound}
-              className="p-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+              className="p-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
               title="Probar sonido de campanilla"
             >
               <Volume2 className="h-4 w-4" />
@@ -470,12 +493,12 @@ export default function PanelOperador() {
                 ¡Nuevo Pedido #{notificacionAlerta.id} de {notificacionAlerta.cliente}!
               </span>
               <span className="text-xs text-amber-800 font-semibold">
-                (${Number(notificacionAlerta.total).toLocaleString("es-AR")})
+                ({formatDOP(notificacionAlerta.total)})
               </span>
             </div>
             <button
               onClick={() => setNotificacionAlerta(null)}
-              className="text-amber-800 hover:text-amber-950 text-xs font-bold"
+              className="text-amber-800 hover:text-amber-950 text-xs font-bold cursor-pointer"
             >
               Cerrar
             </button>
@@ -488,7 +511,7 @@ export default function PanelOperador() {
         {pestanaActiva === "ordenes" && (
           <div className="mt-6 space-y-6">
             
-            {/* Métricas */}
+            {/* Métricas en DOP */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between">
                 <div>
@@ -507,10 +530,10 @@ export default function PanelOperador() {
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                    Cobrado Hoy
+                    Cobrado Hoy (DOP)
                   </span>
                   <span className="text-2xl font-bold text-emerald-600 mt-0.5 block">
-                    ${totalRecaudado.toLocaleString("es-AR")}
+                    {formatDOP(totalRecaudado)}
                   </span>
                 </div>
                 <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
@@ -538,7 +561,7 @@ export default function PanelOperador() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setFiltroEstado("pendiente")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                     filtroEstado === "pendiente"
                       ? "bg-slate-900 text-white"
                       : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -548,7 +571,7 @@ export default function PanelOperador() {
                 </button>
                 <button
                   onClick={() => setFiltroEstado("cobrado")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                     filtroEstado === "cobrado"
                       ? "bg-slate-900 text-white"
                       : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -558,7 +581,7 @@ export default function PanelOperador() {
                 </button>
                 <button
                   onClick={() => setFiltroEstado("todos")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                     filtroEstado === "todos"
                       ? "bg-slate-900 text-white"
                       : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
@@ -570,7 +593,7 @@ export default function PanelOperador() {
 
               <button
                 onClick={cargarPedidos}
-                className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition"
+                className="p-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
                 title="Actualizar"
               >
                 <RefreshCw className={`h-4 w-4 ${cargando ? "animate-spin text-slate-900" : ""}`} />
@@ -611,10 +634,10 @@ export default function PanelOperador() {
                           </div>
                           <span
                             className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                              esPendiente
+                              esFiado
+                                ? "bg-purple-100 text-purple-900 font-black border border-purple-200"
+                                : esPendiente
                                 ? "bg-amber-100 text-amber-800"
-                                : esFiado
-                                ? "bg-purple-100 text-purple-800 font-extrabold"
                                 : esCobrado
                                 ? "bg-emerald-100 text-emerald-800"
                                 : "bg-red-100 text-red-800"
@@ -635,15 +658,15 @@ export default function PanelOperador() {
                           </span>
                         </div>
 
-                        <div className="space-y-1 py-1 text-xs text-slate-700">
+                        <div className="space-y-1.5 py-1 text-xs text-slate-700">
                           {pedido.detalle_pedido && pedido.detalle_pedido.length > 0 ? (
                             pedido.detalle_pedido.map((item, idx) => (
-                              <div key={idx} className="flex justify-between">
-                                <span>
+                              <div key={idx} className="flex justify-between items-baseline">
+                                <span className="truncate pr-2">
                                   <strong>{item.cantidad}x</strong> {item.productos?.nombre || item.nombre || "Producto"}
                                 </span>
-                                <span className="font-mono text-slate-500">
-                                  ${(item.subtotal || item.cantidad * item.precio_unitario).toFixed(2)}
+                                <span className="font-mono text-slate-600 font-semibold shrink-0">
+                                  {formatDOP(item.subtotal || item.cantidad * item.precio_unitario)}
                                 </span>
                               </div>
                             ))
@@ -653,7 +676,7 @@ export default function PanelOperador() {
                         </div>
 
                         {pedido.notas && (
-                          <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800">
+                          <div className="mt-2.5 p-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800">
                             <strong>Nota:</strong> {pedido.notas}
                           </div>
                         )}
@@ -661,9 +684,9 @@ export default function PanelOperador() {
 
                       <div className="mt-4 pt-3 border-t border-slate-100">
                         <div className="flex justify-between items-baseline mb-3">
-                          <span className="text-xs uppercase font-bold text-slate-500">Total</span>
-                          <span className="text-xl font-bold text-slate-900">
-                            ${Number(pedido.total).toFixed(2)}
+                          <span className="text-xs uppercase font-bold text-slate-500">Total (DOP)</span>
+                          <span className="text-xl font-black text-slate-900">
+                            {formatDOP(pedido.total)}
                           </span>
                         </div>
 
@@ -671,14 +694,14 @@ export default function PanelOperador() {
                           <div className="space-y-1.5">
                             <button
                               onClick={() => abrirModalCobro(pedido)}
-                              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95"
+                              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
                             >
                               <Printer className="h-4 w-4" />
-                              <span>COBRAR / FIADO / IMPRIMIR</span>
+                              <span>COBRAR / FIADO / TICKET</span>
                             </button>
                             <button
                               onClick={() => cancelarPedido(pedido.id)}
-                              className="w-full text-xs text-slate-400 hover:text-red-600 py-1 transition text-center"
+                              className="w-full text-xs text-slate-400 hover:text-red-600 py-1 transition text-center cursor-pointer"
                             >
                               Anular Orden
                             </button>
@@ -690,7 +713,7 @@ export default function PanelOperador() {
                             </span>
                             <button
                               onClick={() => abrirModalCobro(pedido)}
-                              className="text-slate-600 hover:text-slate-900 underline text-[11px]"
+                              className="text-slate-600 hover:text-slate-900 underline text-[11px] cursor-pointer"
                             >
                               Re-imprimir / Modificar
                             </button>
@@ -706,7 +729,7 @@ export default function PanelOperador() {
         )}
 
         {/* =========================================
-            PESTAÑA 2: GESTIÓN DE INVENTARIO
+            PESTAÑA 2: GESTIÓN DE INVENTARIO (FOTOS, TÍTULOS Y DESCRIPCIONES)
             ========================================= */}
         {pestanaActiva === "inventario" && (
           <div className="mt-6 space-y-5">
@@ -717,7 +740,7 @@ export default function PanelOperador() {
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Buscar producto en inventario..."
+                    placeholder="Buscar por título o descripción..."
                     value={busquedaInv}
                     onChange={(e) => setBusquedaInv(e.target.value)}
                     className="w-full bg-white border border-slate-200 focus:border-slate-400 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-900 outline-none"
@@ -727,7 +750,7 @@ export default function PanelOperador() {
                 <select
                   value={categoriaFiltroInv}
                   onChange={(e) => setCategoriaFiltroInv(e.target.value)}
-                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none"
+                  className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 outline-none cursor-pointer"
                 >
                   <option value="todas">Todas las Categorías</option>
                   {categorias.map((c) => (
@@ -748,7 +771,7 @@ export default function PanelOperador() {
                     activo: true
                   })
                 }
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 shrink-0"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 shrink-0 cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 <span>+ Nuevo Producto</span>
@@ -760,10 +783,10 @@ export default function PanelOperador() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
                     <tr>
-                      <th className="py-3 px-4">Producto</th>
+                      <th className="py-3 px-4">Producto (Foto, Título y Descripción)</th>
                       <th className="py-3 px-4">Categoría</th>
-                      <th className="py-3 px-4">Precio</th>
-                      <th className="py-3 px-4">Stock en Vivo</th>
+                      <th className="py-3 px-4">Precio (DOP)</th>
+                      <th className="py-3 px-4">Stock en Mostrador</th>
                       <th className="py-3 px-4 text-center">Estado</th>
                       <th className="py-3 px-4 text-right">Acciones</th>
                     </tr>
@@ -773,18 +796,22 @@ export default function PanelOperador() {
                       <tr key={prod.id} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                            <div className="h-14 w-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center relative">
                               {prod.imagen_url ? (
                                 <img src={prod.imagen_url} alt="" className="h-full w-full object-cover" />
                               ) : (
-                                <Store className="h-4 w-4 text-slate-400" />
+                                <Store className="h-5 w-5 text-slate-400" />
                               )}
                             </div>
-                            <div>
-                              <span className="font-bold text-slate-900 block">{prod.nombre}</span>
-                              {prod.descripcion && (
-                                <span className="text-[11px] text-slate-400 truncate max-w-xs block">
+                            <div className="max-w-xs">
+                              <span className="font-bold text-slate-900 block text-sm">{prod.nombre}</span>
+                              {prod.descripcion ? (
+                                <span className="text-[11px] text-slate-500 line-clamp-1 block mt-0.5">
                                   {prod.descripcion}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic block mt-0.5">
+                                  Sin descripción
                                 </span>
                               )}
                             </div>
@@ -796,14 +823,14 @@ export default function PanelOperador() {
                         </td>
 
                         <td className="py-3 px-4 font-bold text-slate-900">
-                          ${Number(prod.precio).toLocaleString("es-AR")}
+                          {formatDOP(prod.precio)}
                         </td>
 
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => modificarStockRapido(prod.id, -1)}
-                              className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center"
+                              className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
                               title="Restar 1"
                             >
                               -
@@ -813,14 +840,14 @@ export default function PanelOperador() {
                             </span>
                             <button
                               onClick={() => modificarStockRapido(prod.id, 1)}
-                              className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center"
+                              className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
                               title="Sumar 1"
                             >
                               +
                             </button>
                             <button
                               onClick={() => modificarStockRapido(prod.id, 5)}
-                              className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600"
+                              className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 cursor-pointer"
                               title="Sumar 5"
                             >
                               +5
@@ -831,7 +858,7 @@ export default function PanelOperador() {
                         <td className="py-3 px-4 text-center">
                           <button
                             onClick={() => toggleActivoProducto(prod.id, prod.activo)}
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer ${
                               prod.activo
                                 ? "bg-emerald-100 text-emerald-800"
                                 : "bg-slate-100 text-slate-500"
@@ -846,14 +873,14 @@ export default function PanelOperador() {
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => setModalProducto(prod)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
                               title="Editar producto"
                             >
                               <Edit2 className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => eliminarProducto(prod.id, prod.nombre)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
                               title="Eliminar producto"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -873,7 +900,7 @@ export default function PanelOperador() {
       </div>
 
       {/* =========================================
-          MODAL: COBRO CON FIADO, VUELTO Y NOTAS
+          MODAL: COBRO CON FIADO, VUELTO Y NOTAS (BILLETES DOP)
           ========================================= */}
       {pedidoCobrando && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -889,17 +916,17 @@ export default function PanelOperador() {
               </div>
               <button
                 onClick={() => setPedidoCobrando(null)}
-                className="text-slate-400 hover:text-slate-800"
+                className="text-slate-400 hover:text-slate-800 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Total Grande */}
+            {/* Total Grande en DOP */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center mb-4">
-              <span className="text-xs uppercase font-bold text-slate-500 block">Total de la Orden</span>
+              <span className="text-xs uppercase font-bold text-slate-500 block">Total a Cobrar</span>
               <span className="text-3xl font-black text-slate-900">
-                ${Number(pedidoCobrando.total).toLocaleString("es-AR")}
+                {formatDOP(pedidoCobrando.total)}
               </span>
             </div>
 
@@ -912,19 +939,19 @@ export default function PanelOperador() {
                 <button
                   type="button"
                   onClick={() => setMetodoCobro("efectivo")}
-                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
                     metodoCobro === "efectivo"
                       ? "bg-slate-900 border-slate-900 text-white"
                       : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
                   <Banknote className="h-4 w-4" />
-                  <span>Efectivo</span>
+                  <span>Efectivo (DOP)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setMetodoCobro("transferencia")}
-                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
                     metodoCobro === "transferencia"
                       ? "bg-slate-900 border-slate-900 text-white"
                       : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
@@ -936,29 +963,29 @@ export default function PanelOperador() {
                 <button
                   type="button"
                   onClick={() => setMetodoCobro("fiado")}
-                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition ${
+                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
                     metodoCobro === "fiado"
                       ? "bg-purple-900 border-purple-900 text-white"
-                      : "bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                      : "bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100"
                   }`}
                 >
                   <FileText className="h-4 w-4" />
-                  <span>Fiado</span>
+                  <span>Fiado / Cuenta</span>
                 </button>
               </div>
             </div>
 
-            {/* Si es EFECTIVO: Calculadora de Vuelto */}
+            {/* Si es EFECTIVO: Calculadora con Billetes Dominicanos (RD$ 50, 100, 200, 500, 1000, 2000) */}
             {metodoCobro === "efectivo" && (
               <div className="space-y-3 p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    ¿Con cuánto paga el cliente?
+                    ¿Con cuánto abona el cliente? (RD$)
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    placeholder="Monto entregado"
+                    placeholder="Monto entregado en pesos"
                     value={montoEntregado}
                     onChange={(e) => setMontoEntregado(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-base font-bold text-slate-900 outline-none focus:border-slate-900"
@@ -966,23 +993,23 @@ export default function PanelOperador() {
                   />
                 </div>
 
-                {/* Botones de Montos Rápidos */}
+                {/* Billetes Dominicanos Rápidos */}
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   <button
                     type="button"
                     onClick={() => setMontoEntregado(String(pedidoCobrando.total))}
-                    className="px-2 py-1 bg-white border border-slate-200 rounded-md font-bold text-slate-700 hover:bg-slate-100"
+                    className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-bold text-slate-800 hover:bg-slate-100 cursor-pointer shadow-2xs"
                   >
                     Exacto
                   </button>
-                  {[1000, 2000, 5000, 10000, 20000].map((billete) => (
+                  {[50, 100, 200, 500, 1000, 2000].map((billete) => (
                     <button
                       key={billete}
                       type="button"
                       onClick={() => setMontoEntregado(String(billete))}
-                      className="px-2 py-1 bg-white border border-slate-200 rounded-md font-bold text-slate-700 hover:bg-slate-100"
+                      className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
                     >
-                      ${billete.toLocaleString("es-AR")}
+                      RD$ {billete.toLocaleString("es-DO")}
                     </button>
                   ))}
                 </div>
@@ -990,12 +1017,12 @@ export default function PanelOperador() {
                 {/* Cálculo en Vivo del Vuelto */}
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs">
                   <span className="font-bold text-slate-600">
-                    {vueltoCalculado >= 0 ? "Vuelto a Entregar:" : "Faltan cobrar:"}
+                    {vueltoCalculado >= 0 ? "Vuelto / Cambio a entregar:" : "Faltan cobrar:"}
                   </span>
-                  <span className={`text-base font-black ${
+                  <span className={`text-lg font-black ${
                     vueltoCalculado >= 0 ? "text-emerald-700" : "text-amber-600"
                   }`}>
-                    ${Math.abs(vueltoCalculado).toLocaleString("es-AR")}
+                    {formatDOP(Math.abs(vueltoCalculado))}
                   </span>
                 </div>
               </div>
@@ -1005,10 +1032,10 @@ export default function PanelOperador() {
             {metodoCobro === "fiado" && (
               <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl mb-4 text-xs text-purple-900 space-y-1">
                 <span className="font-bold flex items-center gap-1 text-purple-950">
-                  <FileText className="h-4 w-4" /> Venta anotada a Cuenta Corriente (Fiado)
+                  <FileText className="h-4 w-4" /> Venta registrada como Fiado / Cuenta
                 </span>
                 <p className="text-[11px] text-purple-700">
-                  El pedido se registrará como fiado para llevar el control de la deuda del cliente.
+                  La orden se guardará con estado de cuenta pendiente para llevar el registro de deudas.
                 </p>
               </div>
             )}
@@ -1032,7 +1059,7 @@ export default function PanelOperador() {
               <button
                 type="button"
                 onClick={() => setPedidoCobrando(null)}
-                className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs"
+                className="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs cursor-pointer"
               >
                 Cancelar
               </button>
@@ -1040,7 +1067,7 @@ export default function PanelOperador() {
                 type="button"
                 onClick={confirmarCobroFinal}
                 disabled={cobrandoProceso}
-                className="flex-2 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs disabled:opacity-50"
+                className="flex-2 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs disabled:opacity-50 cursor-pointer"
               >
                 <Printer className="h-4 w-4" />
                 <span>
@@ -1057,68 +1084,95 @@ export default function PanelOperador() {
       )}
 
       {/* =========================================
-          MODAL: CREAR / EDITAR PRODUCTO (INVENTARIO)
+          MODAL: CREAR / EDITAR PRODUCTO (FOTO, TÍTULO Y DESCRIPCIÓN)
           ========================================= */}
       {modalProducto && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-xl">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 shadow-xl max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100 mb-4">
-              <h3 className="font-bold text-sm text-slate-900">
-                {modalProducto.id ? "Editar Producto" : "Nuevo Producto"}
-              </h3>
+              <div>
+                <h3 className="font-bold text-base text-slate-900">
+                  {modalProducto.id ? "Editar Producto" : "Nuevo Producto"}
+                </h3>
+                <p className="text-xs text-slate-500">Configura la foto, título, descripción y precio en DOP</p>
+              </div>
               <button
                 onClick={() => setModalProducto(null)}
-                className="text-slate-400 hover:text-slate-800"
+                className="text-slate-400 hover:text-slate-800 cursor-pointer"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={guardarProductoModal} className="space-y-3 text-xs">
+            <form onSubmit={guardarProductoModal} className="space-y-4 text-xs">
+              
+              {/* TÍTULO / NOMBRE */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nombre</label>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Título o Nombre del Producto *
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="Ej. Alfajor Havanna"
+                  placeholder="Ej. Cerveza Presidente 355ml"
                   value={modalProducto.nombre || ""}
                   onChange={(e) => setModalProducto({ ...modalProducto, nombre: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:bg-white focus:border-slate-400"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm outline-none focus:bg-white focus:border-slate-900"
                 />
               </div>
 
+              {/* DESCRIPCIÓN DETALLADA */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Descripción del Producto
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ej. Botella bien fría vestida de novia, recién sacada del freezer."
+                  value={modalProducto.descripcion || ""}
+                  onChange={(e) => setModalProducto({ ...modalProducto, descripcion: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:bg-white focus:border-slate-900"
+                />
+              </div>
+
+              {/* PRECIO (DOP) Y STOCK */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Precio ($)</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Precio en DOP (RD$) *
+                  </label>
                   <input
                     type="number"
                     step="0.01"
                     required
-                    placeholder="1500"
+                    placeholder="180.00"
                     value={modalProducto.precio || ""}
                     onChange={(e) => setModalProducto({ ...modalProducto, precio: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:bg-white focus:border-slate-400"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-slate-900"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Stock</label>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Stock Disponible *
+                  </label>
                   <input
                     type="number"
                     required
-                    placeholder="20"
+                    placeholder="24"
                     value={modalProducto.stock ?? ""}
                     onChange={(e) => setModalProducto({ ...modalProducto, stock: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:bg-white focus:border-slate-400"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-slate-900"
                   />
                 </div>
               </div>
 
+              {/* CATEGORÍA */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Categoría</label>
+                <label className="block font-bold text-slate-700 mb-1">Categoría</label>
                 <select
                   value={modalProducto.categoria_id || ""}
                   onChange={(e) => setModalProducto({ ...modalProducto, categoria_id: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:bg-white focus:border-slate-400"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 outline-none focus:bg-white focus:border-slate-900 cursor-pointer"
                 >
                   <option value="">Selecciona una categoría</option>
                   {categorias.map((c) => (
@@ -1127,40 +1181,71 @@ export default function PanelOperador() {
                 </select>
               </div>
 
+              {/* IMAGEN Y VISTA PREVIA */}
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">URL de Imagen (Opcional)</label>
-                <input
-                  type="url"
-                  placeholder="https://images.unsplash.com/..."
-                  value={modalProducto.imagen_url || ""}
-                  onChange={(e) => setModalProducto({ ...modalProducto, imagen_url: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:bg-white focus:border-slate-400"
-                />
-              </div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  URL de Imagen del Producto
+                </label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="url"
+                    placeholder="https://images.unsplash.com/..."
+                    value={modalProducto.imagen_url || ""}
+                    onChange={(e) => setModalProducto({ ...modalProducto, imagen_url: e.target.value })}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs outline-none focus:bg-white focus:border-slate-900"
+                  />
+                </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Descripción Corta</label>
-                <input
-                  type="text"
-                  placeholder="Ej. Fría, sin azúcar, etc."
-                  value={modalProducto.descripcion || ""}
-                  onChange={(e) => setModalProducto({ ...modalProducto, descripcion: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 outline-none focus:bg-white focus:border-slate-400"
-                />
+                {/* Botones de fotos predefinidas para 1-clic */}
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-semibold">
+                    O elige una imagen rápida de muestra:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {fotosPredefinidas.map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setModalProducto({ ...modalProducto, imagen_url: item.url })}
+                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] rounded-md font-semibold transition cursor-pointer"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Vista previa de la imagen cargada */}
+                {modalProducto.imagen_url && (
+                  <div className="mt-3 p-2 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-3">
+                    <img
+                      src={modalProducto.imagen_url}
+                      alt="Vista previa"
+                      className="h-16 w-16 object-cover rounded-lg border border-slate-200"
+                      onError={(e) => {
+                        e.currentTarget.src = "https://via.placeholder.com/150?text=Error";
+                      }}
+                    />
+                    <div className="text-xs text-slate-600">
+                      <span className="font-bold text-slate-900 block">Vista previa de imagen</span>
+                      <span className="text-[10px] text-slate-400">Esta imagen se mostrará en el menú del cliente.</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setModalProducto(null)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-slate-700"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={guardandoProd}
-                  className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {guardandoProd ? "Guardando..." : "Guardar Producto"}
                 </button>
@@ -1171,7 +1256,7 @@ export default function PanelOperador() {
       )}
 
       {/* =========================================
-          MODAL: TICKET DE CAJA IMPRIMIBLE (58mm/80mm)
+          MODAL: TICKET DE CAJA IMPRIMIBLE EN DOP
           ========================================= */}
       {ticketParaImprimir && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1182,7 +1267,7 @@ export default function PanelOperador() {
               </span>
               <button
                 onClick={() => setTicketParaImprimir(null)}
-                className="text-slate-400 hover:text-slate-800"
+                className="text-slate-400 hover:text-slate-800 cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1191,7 +1276,7 @@ export default function PanelOperador() {
             <div id="thermal-receipt" className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono text-xs text-slate-800 leading-snug space-y-2">
               <div className="text-center font-bold">
                 <div className="text-sm">TB LA VEGA</div>
-                <div className="text-[10px] text-slate-500">TICKET DE VENTA</div>
+                <div className="text-[10px] text-slate-500">TICKET DE VENTA (DOP)</div>
               </div>
               <div className="border-t border-dashed border-slate-300"></div>
               <div className="text-[11px]">
@@ -1207,25 +1292,25 @@ export default function PanelOperador() {
                 {ticketParaImprimir.items.map((item, idx) => (
                   <div key={idx} className="flex justify-between">
                     <span>{item.cantidad}x {item.nombre}</span>
-                    <span>${Number(item.subtotal).toFixed(2)}</span>
+                    <span>{formatDOP(item.subtotal)}</span>
                   </div>
                 ))}
               </div>
               <div className="border-t border-dashed border-slate-300"></div>
               <div className="flex justify-between font-bold text-sm">
                 <span>TOTAL:</span>
-                <span>${Number(ticketParaImprimir.total).toFixed(2)}</span>
+                <span>{formatDOP(ticketParaImprimir.total)}</span>
               </div>
 
               {ticketParaImprimir.metodo_pago === "efectivo" && ticketParaImprimir.monto_recibido && (
                 <div className="text-[11px] pt-1 text-slate-600 border-t border-slate-200">
                   <div className="flex justify-between">
                     <span>ABONO CON:</span>
-                    <span>${Number(ticketParaImprimir.monto_recibido).toFixed(2)}</span>
+                    <span>{formatDOP(ticketParaImprimir.monto_recibido)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-slate-900">
                     <span>VUELTO:</span>
-                    <span>${Number(ticketParaImprimir.vuelto || 0).toFixed(2)}</span>
+                    <span>{formatDOP(ticketParaImprimir.vuelto || 0)}</span>
                   </div>
                 </div>
               )}
@@ -1244,14 +1329,14 @@ export default function PanelOperador() {
             <div className="mt-4 flex gap-2">
               <button
                 onClick={imprimirEnNavegador}
-                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5"
+                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Printer className="h-4 w-4" />
                 <span>Imprimir Ticket</span>
               </button>
               <button
                 onClick={() => setTicketParaImprimir(null)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs"
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
               >
                 Cerrar
               </button>
@@ -1261,7 +1346,7 @@ export default function PanelOperador() {
       )}
 
       <footer className="text-center text-xs text-slate-400 border-t border-slate-200 py-5">
-        TB La Vega • Mostrador
+        TB La Vega • Mostrador • Precios en DOP
       </footer>
     </div>
   );

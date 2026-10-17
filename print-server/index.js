@@ -48,22 +48,22 @@ function generarTextoTicket(pedido) {
 
   const items = pedido.items || pedido.detalle_pedido || [];
   if (items.length === 0) {
-    ticket += "1x [Consumo general]      $" + (Number(pedido.total) || 0).toFixed(2) + "\n";
+    ticket += "1x [Consumo general]   RD$" + (Number(pedido.total) || 0).toFixed(2) + "\n";
   } else {
     items.forEach((item) => {
       const cant = item.cantidad || 1;
-      const nombre = (item.nombre || item.productos?.nombre || "Producto").substring(0, 18).padEnd(18, " ");
-      const subtotal = "$" + (Number(item.subtotal) || (Number(item.precio || item.precio_unitario || 0)) * cant).toFixed(2);
-      ticket += `${cant}x ${nombre} ${subtotal.padStart(8, " ")}\n`;
+      const nombre = (item.nombre || item.productos?.nombre || "Producto").substring(0, 16).padEnd(16, " ");
+      const subtotal = "RD$" + (Number(item.subtotal) || (Number(item.precio || item.precio_unitario || 0)) * cant).toFixed(2);
+      ticket += `${cant}x ${nombre} ${subtotal.padStart(10, " ")}\n`;
     });
   }
 
   ticket += line + "\n";
-  ticket += `TOTAL A PAGAR: $${(Number(pedido.total) || 0).toFixed(2)}\n`;
+  ticket += `TOTAL A PAGAR: RD$ ${(Number(pedido.total) || 0).toFixed(2)}\n`;
 
   if (pedido.metodo_pago === "efectivo" && pedido.monto_recibido) {
-    ticket += `ABONO CON    : $${Number(pedido.monto_recibido).toFixed(2)}\n`;
-    ticket += `VUELTO       : $${Number(pedido.vuelto || 0).toFixed(2)}\n`;
+    ticket += `ABONO CON    : RD$ ${Number(pedido.monto_recibido).toFixed(2)}\n`;
+    ticket += `VUELTO       : RD$ ${Number(pedido.vuelto || 0).toFixed(2)}\n`;
   }
 
   if (pedido.notas) {
@@ -135,7 +135,7 @@ app.post("/imprimir", async (req, res) => {
         items.forEach((item) => {
           const cant = item.cantidad || 1;
           const nom = item.nombre || item.productos?.nombre || "Producto";
-          const sub = "$" + (Number(item.subtotal) || (Number(item.precio || item.precio_unitario || 0)) * cant).toFixed(2);
+          const sub = "RD$ " + (Number(item.subtotal) || (Number(item.precio || item.precio_unitario || 0)) * cant).toFixed(2);
           printer.text(`${cant}x ${nom} - ${sub}`);
         });
 
@@ -144,13 +144,13 @@ app.post("/imprimir", async (req, res) => {
           .align("rt")
           .style("b")
           .size(1, 1)
-          .text(`TOTAL: $${(Number(pedido.total) || 0).toFixed(2)}`);
+          .text(`TOTAL: RD$ ${(Number(pedido.total) || 0).toFixed(2)}`);
 
         if (pedido.metodo_pago === "efectivo" && pedido.monto_recibido) {
           printer
             .align("rt")
-            .text(`Abono: $${Number(pedido.monto_recibido).toFixed(2)}`)
-            .text(`Vuelto: $${Number(pedido.vuelto || 0).toFixed(2)}`);
+            .text(`Abono: RD$ ${Number(pedido.monto_recibido).toFixed(2)}`)
+            .text(`Vuelto: RD$ ${Number(pedido.vuelto || 0).toFixed(2)}`);
         }
 
         if (pedido.notas) {
