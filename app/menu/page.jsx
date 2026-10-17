@@ -20,24 +20,6 @@ import {
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { playChimeSound } from "@/lib/sound";
 
-const DEMO_CATEGORIAS = [
-  { id: 1, nombre: "Bebidas", icono: "🥤" },
-  { id: 2, nombre: "Snacks", icono: "🍟" },
-  { id: 3, nombre: "Golosinas", icono: "🍫" },
-  { id: 4, nombre: "Sandwiches", icono: "🥪" },
-];
-
-const DEMO_PRODUCTOS = [
-  { id: 1, categoria_id: 1, nombre: "Coca Cola 500ml", descripcion: "Botella descartable fría", precio: 1500, stock: 24, activo: true, imagen_url: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=500&auto=format&fit=crop&q=80" },
-  { id: 2, categoria_id: 1, nombre: "Agua Mineral 500ml", descripcion: "Con o sin gas fresca", precio: 900, stock: 30, activo: true, imagen_url: "https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=500&auto=format&fit=crop&q=80" },
-  { id: 3, categoria_id: 1, nombre: "Energizante Monster 473ml", descripcion: "Lata original clásica", precio: 2400, stock: 15, activo: true, imagen_url: "https://images.unsplash.com/photo-1622543925917-763c34d1a86e?w=500&auto=format&fit=crop&q=80" },
-  { id: 4, categoria_id: 2, nombre: "Papas Fritas Lays 95g", descripcion: "Clásicas crocantes con sal", precio: 1600, stock: 20, activo: true, imagen_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop&q=80" },
-  { id: 5, categoria_id: 2, nombre: "Doritos Mega Queso 90g", descripcion: "Triángulos crujientes de maíz", precio: 1900, stock: 12, activo: true, imagen_url: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=500&auto=format&fit=crop&q=80" },
-  { id: 6, categoria_id: 3, nombre: "Alfajor Havanna Cacao", descripcion: "Chocolate y dulce de leche", precio: 1400, stock: 30, activo: true, imagen_url: "https://images.unsplash.com/photo-1587314168485-3236d6710814?w=500&auto=format&fit=crop&q=80" },
-  { id: 7, categoria_id: 3, nombre: "Chocolate Milka Oreo", descripcion: "Tableta con galletita Oreo 100g", precio: 2200, stock: 10, activo: true, imagen_url: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=500&auto=format&fit=crop&q=80" },
-  { id: 8, categoria_id: 4, nombre: "Sandwich Jamón y Queso", descripcion: "Pan de miga fresco del día", precio: 2200, stock: 8, activo: true, imagen_url: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=500&auto=format&fit=crop&q=80" },
-];
-
 export default function MenuCliente() {
   const [paso, setPaso] = useState("registro");
   const [nombre, setNombre] = useState("");
@@ -52,7 +34,6 @@ export default function MenuCliente() {
   const [cargando, setCargando] = useState(false);
   const [pedidoGuardado, setPedidoGuardado] = useState(null);
   const [errorMensaje, setErrorMensaje] = useState("");
-  const [isLiveDB, setIsLiveDB] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -60,37 +41,47 @@ export default function MenuCliente() {
       if (savedName) setNombre(savedName);
     }
     cargarDatos();
+
+    // Suscripción Realtime a cambios en productos (stock / precios actualizados por el cajero)
+    let canal = null;
+    if (isSupabaseConfigured()) {
+      canal = supabase
+        .channel("cliente_productos_realtime")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "productos" },
+          () => {
+            cargarDatos();
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      if (canal) supabase.removeChannel(canal);
+    };
   }, []);
 
   const cargarDatos = async () => {
-    if (isSupabaseConfigured()) {
-      try {
-        const { data: catData } = await supabase
-          .from("categorias")
-          .select("*")
-          .order("orden", { ascending: true });
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data: catData } = await supabase
+        .from("categorias")
+        .select("*")
+        .order("orden", { ascending: true });
 
-        const { data: prodData } = await supabase
-          .from("productos")
-          .select("*, categorias(nombre)")
-          .filter("activo", "eq", true)
-          .gt("stock", 0)
-          .order("nombre", { ascending: true });
+      const { data: prodData } = await supabase
+        .from("productos")
+        .select("*, categorias(nombre)")
+        .filter("activo", "eq", true)
+        .gt("stock", 0)
+        .order("nombre", { ascending: true });
 
-        if (prodData && prodData.length > 0) {
-          setCategorias(catData || []);
-          setProductos(prodData);
-          setIsLiveDB(true);
-          return;
-        }
-      } catch (err) {
-        console.warn("Fallo lectura Supabase:", err);
-      }
+      if (catData) setCategorias(catData);
+      if (prodData) setProductos(prodData);
+    } catch (err) {
+      console.warn("Error al cargar menú:", err);
     }
-
-    setCategorias(DEMO_CATEGORIAS);
-    setProductos(DEMO_PRODUCTOS);
-    setIsLiveDB(false);
   };
 
   const iniciarCompra = (e) => {
@@ -111,7 +102,7 @@ export default function MenuCliente() {
     const cantidadActual = itemActual ? itemActual.cantidad : 0;
 
     if (cantidadActual >= producto.stock) {
-      alert(`Quedan solo ${producto.stock} unidades disponibles.`);
+      alert(`Solo quedan ${producto.stock} unidades de este producto.`);
       return;
     }
 
@@ -154,12 +145,15 @@ export default function MenuCliente() {
   const totalArticulos = carrito.reduce((acc, item) => acc + item.cantidad, 0);
 
   const enviarPedido = async () => {
-    if (carrito.length === 0) return;
+    if (carrito.length === 0 || cargando) return;
     setCargando(true);
     setErrorMensaje("");
 
+    let pedidoIdCreado = null;
+
     try {
-      if (isLiveDB) {
+      if (isSupabaseConfigured()) {
+        // 1. Insertar orden en Supabase
         const { data: nuevoPedido, error: errorPedido } = await supabase
           .from("pedidos")
           .insert({
@@ -173,7 +167,9 @@ export default function MenuCliente() {
           .single();
 
         if (errorPedido) throw new Error(errorPedido.message);
+        pedidoIdCreado = nuevoPedido.id;
 
+        // 2. Insertar detalles (PostgreSQL trigger descontará stock atómicamente)
         const detalles = carrito.map((item) => ({
           pedido_id: nuevoPedido.id,
           producto_id: item.id,
@@ -186,7 +182,9 @@ export default function MenuCliente() {
           .insert(detalles);
 
         if (errorDetalles) {
-          throw new Error("No se pudo descontar el stock: " + errorDetalles.message);
+          // Si falla (ej. stock insuficiente), limpiamos la orden huérfana
+          await supabase.from("pedidos").delete().eq("id", nuevoPedido.id);
+          throw new Error("No se pudo procesar: " + errorDetalles.message);
         }
 
         setPedidoGuardado({
@@ -195,32 +193,26 @@ export default function MenuCliente() {
         });
       } else {
         const fakeId = Math.floor(100 + Math.random() * 900);
-        const simulado = {
+        setPedidoGuardado({
           id: fakeId,
           cliente_nombre: nombre.trim(),
           total: totalCarrito,
           estado: "pendiente",
           metodo_pago: metodoPago,
           notas: notas.trim(),
-          creado_en: new Date().toISOString(),
           items: [...carrito],
-        };
-        setPedidoGuardado(simulado);
+        });
       }
 
       playChimeSound();
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
 
       setCarrito([]);
       setMostrarCarritoModal(false);
       setPaso("comprobante");
     } catch (err) {
       console.error("Error al procesar orden:", err);
-      setErrorMensaje(err.message || "Error al procesar tu pedido. Intenta nuevamente.");
+      setErrorMensaje(err.message || "Error al procesar tu pedido. Por favor intenta nuevamente.");
     } finally {
       setCargando(false);
     }
@@ -237,22 +229,22 @@ export default function MenuCliente() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center selection:bg-slate-900 selection:text-white font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center font-sans selection:bg-slate-900 selection:text-white">
       <div className="w-full max-w-md bg-white border-x border-slate-200 min-h-screen flex flex-col shadow-xs">
         
         {/* =========================================
-            PASO 1: REGISTRO CLIENTE (TB LA VEGA)
+            PASO 1: IDENTIFICACIÓN DEL CLIENTE
             ========================================= */}
         {paso === "registro" && (
           <div className="flex-1 flex flex-col justify-between p-6">
-            <div className="pt-14 text-center">
+            <div className="pt-16 text-center">
               <div className="h-16 w-16 mx-auto rounded-2xl bg-slate-900 text-white flex items-center justify-center mb-4 shadow-xs">
                 <Store className="h-8 w-8 stroke-[2]" />
               </div>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
                 TB La Vega
               </h1>
-              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">
+              <p className="text-slate-500 text-sm mt-1">
                 Escribe tu nombre para iniciar tu pedido
               </p>
             </div>
@@ -296,7 +288,7 @@ export default function MenuCliente() {
         )}
 
         {/* =========================================
-            PASO 2: MENÚ DE PRODUCTOS
+            PASO 2: CATÁLOGO DE PRODUCTOS
             ========================================= */}
         {paso === "menu" && (
           <div className="flex-1 flex flex-col pb-24">
@@ -373,11 +365,11 @@ export default function MenuCliente() {
               </div>
             </header>
 
-            {/* Lista de Productos */}
+            {/* Listado */}
             <main className="flex-1 p-4 space-y-3 bg-slate-50">
               {productosFiltrados.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">
-                  <p className="font-semibold text-slate-600 text-sm">No encontramos productos</p>
+                  <p className="font-semibold text-slate-600 text-sm">No hay productos en esta sección</p>
                 </div>
               ) : (
                 productosFiltrados.map((prod) => {
@@ -404,6 +396,11 @@ export default function MenuCliente() {
                         ) : (
                           <Store className="h-6 w-6 text-slate-400" />
                         )}
+                        {prod.stock <= 4 && prod.stock > 0 && (
+                          <span className="absolute bottom-1 right-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                            Quedan {prod.stock}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -411,9 +408,14 @@ export default function MenuCliente() {
                         {prod.descripcion && (
                           <p className="text-xs text-slate-500 truncate mt-0.5">{prod.descripcion}</p>
                         )}
-                        <span className="text-sm font-bold text-slate-900 block mt-1">
-                          ${Number(prod.precio).toLocaleString("es-AR")}
-                        </span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-base font-bold text-slate-900">
+                            ${Number(prod.precio).toLocaleString("es-AR")}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            Disponibles: {prod.stock}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="shrink-0">
@@ -440,7 +442,7 @@ export default function MenuCliente() {
                           <button
                             onClick={() => agregarAlCarrito(prod)}
                             disabled={sinStock}
-                            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition active:scale-95 disabled:opacity-40"
+                            className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition active:scale-95 disabled:opacity-40"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             <span>Pedir</span>
@@ -478,7 +480,7 @@ export default function MenuCliente() {
           </div>
         )}
 
-        {/* Modal Carrito */}
+        {/* Modal de Revisión de Carrito */}
         {mostrarCarritoModal && (
           <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex justify-center items-end sm:items-center p-0 sm:p-4">
             <div className="bg-white border border-slate-200 w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
@@ -617,7 +619,7 @@ export default function MenuCliente() {
           </div>
         )}
 
-        {/* Paso 3: Comprobante */}
+        {/* Paso 3: Comprobante Digital */}
         {paso === "comprobante" && pedidoGuardado && (
           <div className="flex-1 flex flex-col justify-between p-6 bg-slate-50">
             <div className="pt-6 flex flex-col items-center">
