@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Kiosco POS V2.0 - Menú QR & Facturación",
-  description: "Sistema POS Automatizado con Menú QR para Clientes y Panel de Operador con Impresión Térmica",
+  title: "TB La Vega",
+  description: "Menú de pedidos y punto de atención TB La Vega",
 };
 
 export const viewport = {
@@ -15,7 +15,7 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
-      <body className="antialiased selection:bg-teal-500 selection:text-white">
+      <body className="antialiased selection:bg-slate-900 selection:text-white">
         {children}
       </body>
     </html>

@@ -248,12 +248,12 @@ export default function PanelOperador() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-slate-900">MONITOR DE CAJA</h1>
+                <h1 className="text-xl font-bold tracking-tight text-slate-900">TB La Vega • Caja</h1>
                 <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-bold">
                   En Vivo
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Recepción de órdenes e impresión de tickets térmicos</p>
+              <p className="text-xs text-slate-500">Panel de cobro e impresión de tickets</p>
             </div>
           </div>
 
@@ -583,7 +583,7 @@ export default function PanelOperador() {
       )}
 
       <footer className="text-center text-xs text-slate-400 border-t border-slate-200 py-5">
-        Kiosco POS • Interfaz Clara y Rápida para el Mostrador
+        TB La Vega • Mostrador
       </footer>
     </div>
   );

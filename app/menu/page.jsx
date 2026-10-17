@@ -7,18 +7,14 @@ import {
   Plus, 
   Minus, 
   Check, 
-  Clock, 
   Store, 
   Search, 
   ArrowRight, 
   X, 
-  Receipt, 
   AlertCircle, 
   CreditCard,
   Banknote,
-  Sparkles,
   ChevronRight,
-  ShieldCheck,
   Trash2
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -241,29 +237,29 @@ export default function MenuCliente() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col items-center selection:bg-slate-900 selection:text-white">
-      <div className="w-full max-w-md bg-white border-x border-slate-200 min-h-screen flex flex-col shadow-sm">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center selection:bg-slate-900 selection:text-white font-sans">
+      <div className="w-full max-w-md bg-white border-x border-slate-200 min-h-screen flex flex-col shadow-xs">
         
         {/* =========================================
-            PASO 1: BIENVENIDA CLARA Y SENCILLA
+            PASO 1: REGISTRO CLIENTE (TB LA VEGA)
             ========================================= */}
         {paso === "registro" && (
           <div className="flex-1 flex flex-col justify-between p-6">
-            <div className="pt-12 text-center">
-              <div className="h-16 w-16 mx-auto rounded-2xl bg-slate-900 text-white flex items-center justify-center mb-5 shadow-sm">
-                <Store className="h-8 w-8 stroke-[2.2]" />
+            <div className="pt-14 text-center">
+              <div className="h-16 w-16 mx-auto rounded-2xl bg-slate-900 text-white flex items-center justify-center mb-4 shadow-xs">
+                <Store className="h-8 w-8 stroke-[2]" />
               </div>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                Kiosco • Pedidos al Paso
+                TB La Vega
               </h1>
-              <p className="text-slate-500 text-sm mt-1.5 max-w-xs mx-auto">
-                Elige tus productos desde tu celular y retira en caja sin hacer fila.
+              <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">
+                Escribe tu nombre para iniciar tu pedido
               </p>
             </div>
 
             <form onSubmit={iniciarCompra} className="my-8 bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 text-center">
                   Tu Nombre
                 </label>
                 <input
@@ -277,10 +273,6 @@ export default function MenuCliente() {
                 />
               </div>
 
-              <p className="text-xs text-slate-500 text-center">
-                Te llamaremos por tu nombre en el mostrador cuando tu orden esté lista.
-              </p>
-
               {errorMensaje && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 shrink-0" />
@@ -290,33 +282,33 @@ export default function MenuCliente() {
 
               <button
                 type="submit"
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] shadow-sm"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] shadow-xs"
               >
-                <span>Ver Menú de Productos</span>
+                <span>Ver Menú</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
             </form>
 
             <div className="text-center pb-4 text-xs text-slate-400">
-              Menú Digital • Stock en tiempo real
+              TB La Vega
             </div>
           </div>
         )}
 
         {/* =========================================
-            PASO 2: MENÚ CLARO Y FÁCIL DE VER
+            PASO 2: MENÚ DE PRODUCTOS
             ========================================= */}
         {paso === "menu" && (
           <div className="flex-1 flex flex-col pb-24">
             
-            {/* Cabecera Fija Blanca */}
-            <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-4 pt-3.5 pb-2.5 shadow-sm">
+            {/* Cabecera */}
+            <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-4 pt-3.5 pb-2.5">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <span className="text-xs font-semibold text-slate-500 block">
-                    Hola, <strong className="text-slate-900">{nombre}</strong> 👋
+                  <h2 className="text-base font-bold text-slate-900">TB La Vega</h2>
+                  <span className="text-xs text-slate-500">
+                    Cliente: <strong>{nombre}</strong>
                   </span>
-                  <h2 className="text-lg font-bold text-slate-900">Menú del Kiosco</h2>
                 </div>
 
                 <button
@@ -326,19 +318,19 @@ export default function MenuCliente() {
                 >
                   <ShoppingBag className="h-5 w-5" />
                   {totalArticulos > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-emerald-600 text-white text-[11px] font-bold h-5 w-5 rounded-full flex items-center justify-center shadow">
+                    <span className="absolute -top-1 -right-1 bg-slate-900 text-white text-[11px] font-bold h-5 w-5 rounded-full flex items-center justify-center shadow">
                       {totalArticulos}
                     </span>
                   )}
                 </button>
               </div>
 
-              {/* Buscador Simple */}
+              {/* Buscador */}
               <div className="relative mb-2.5">
                 <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Buscar chocolates, bebidas, snacks..."
+                  placeholder="Buscar productos..."
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   className="w-full bg-slate-100 border border-slate-200 focus:bg-white focus:border-slate-400 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition"
@@ -353,7 +345,7 @@ export default function MenuCliente() {
                 )}
               </div>
 
-              {/* Chips de Categorías */}
+              {/* Categorías */}
               <div className="flex gap-2 overflow-x-auto py-1 no-scrollbar">
                 <button
                   onClick={() => setCategoriaSeleccionada("todas")}
@@ -381,13 +373,11 @@ export default function MenuCliente() {
               </div>
             </header>
 
-            {/* Listado de Productos */}
+            {/* Lista de Productos */}
             <main className="flex-1 p-4 space-y-3 bg-slate-50">
               {productosFiltrados.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">
-                  <ShoppingBag className="h-10 w-10 mx-auto stroke-1 mb-2 text-slate-300" />
                   <p className="font-semibold text-slate-600 text-sm">No encontramos productos</p>
-                  <p className="text-xs text-slate-400 mt-1">Intenta con otra búsqueda o categoría</p>
                 </div>
               ) : (
                 productosFiltrados.map((prod) => {
@@ -398,10 +388,9 @@ export default function MenuCliente() {
                   return (
                     <div
                       key={prod.id}
-                      className="bg-white border border-slate-200 rounded-xl p-3 flex gap-3.5 items-center shadow-sm"
+                      className="bg-white border border-slate-200 rounded-xl p-3 flex gap-3.5 items-center shadow-xs"
                     >
-                      {/* Imagen Simple */}
-                      <div className="h-18 w-18 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center relative">
+                      <div className="h-16 w-16 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center relative">
                         {prod.imagen_url ? (
                           <img
                             src={prod.imagen_url}
@@ -415,36 +404,24 @@ export default function MenuCliente() {
                         ) : (
                           <Store className="h-6 w-6 text-slate-400" />
                         )}
-                        {prod.stock <= 4 && prod.stock > 0 && (
-                          <span className="absolute bottom-1 right-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                            Quedan {prod.stock}
-                          </span>
-                        )}
                       </div>
 
-                      {/* Información */}
                       <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-slate-900 text-sm truncate">{prod.nombre}</h3>
                         {prod.descripcion && (
                           <p className="text-xs text-slate-500 truncate mt-0.5">{prod.descripcion}</p>
                         )}
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className="text-base font-bold text-slate-900">
-                            ${Number(prod.precio).toLocaleString("es-AR")}
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            Stock: {prod.stock}
-                          </span>
-                        </div>
+                        <span className="text-sm font-bold text-slate-900 block mt-1">
+                          ${Number(prod.precio).toLocaleString("es-AR")}
+                        </span>
                       </div>
 
-                      {/* Botones de Cantidad */}
                       <div className="shrink-0">
                         {cantidad > 0 ? (
                           <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-300 rounded-lg p-1">
                             <button
                               onClick={() => restarDelCarrito(prod.id)}
-                              className="h-7 w-7 rounded bg-white text-slate-800 shadow-sm flex items-center justify-center font-bold hover:bg-slate-50 active:scale-95"
+                              className="h-7 w-7 rounded bg-white text-slate-800 shadow-xs flex items-center justify-center font-bold active:scale-95"
                             >
                               <Minus className="h-3.5 w-3.5" />
                             </button>
@@ -454,7 +431,7 @@ export default function MenuCliente() {
                             <button
                               onClick={() => agregarAlCarrito(prod)}
                               disabled={cantidad >= prod.stock}
-                              className="h-7 w-7 rounded bg-slate-900 text-white shadow-sm flex items-center justify-center font-bold hover:bg-slate-800 disabled:opacity-40 active:scale-95"
+                              className="h-7 w-7 rounded bg-slate-900 text-white shadow-xs flex items-center justify-center font-bold disabled:opacity-40 active:scale-95"
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
@@ -463,10 +440,10 @@ export default function MenuCliente() {
                           <button
                             onClick={() => agregarAlCarrito(prod)}
                             disabled={sinStock}
-                            className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition active:scale-95 disabled:opacity-40"
+                            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition active:scale-95 disabled:opacity-40"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            <span>Agregar</span>
+                            <span>Pedir</span>
                           </button>
                         )}
                       </div>
@@ -476,16 +453,16 @@ export default function MenuCliente() {
               )}
             </main>
 
-            {/* Barra Flotante Inferior de Carrito */}
+            {/* Barra Inferior Carrito */}
             {totalArticulos > 0 && (
               <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto p-4 z-40 bg-gradient-to-t from-white via-white/95 to-transparent pt-6">
                 <button
                   onClick={() => setMostrarCarritoModal(true)}
                   className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl flex items-center justify-between shadow-lg active:scale-[0.99] transition"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="bg-slate-800 text-white text-xs px-2.5 py-1 rounded-md font-bold">
-                      {totalArticulos} {totalArticulos === 1 ? "producto" : "productos"}
+                  <div className="flex items-center gap-2">
+                    <span className="bg-slate-800 text-white text-xs px-2.5 py-0.5 rounded font-bold">
+                      {totalArticulos}
                     </span>
                     <span className="text-sm">Ver Carrito</span>
                   </div>
@@ -501,9 +478,7 @@ export default function MenuCliente() {
           </div>
         )}
 
-        {/* =========================================
-            MODAL CARRITO CLARO Y LIMPIO
-            ========================================= */}
+        {/* Modal Carrito */}
         {mostrarCarritoModal && (
           <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex justify-center items-end sm:items-center p-0 sm:p-4">
             <div className="bg-white border border-slate-200 w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
@@ -566,7 +541,6 @@ export default function MenuCliente() {
                   </div>
                 ))}
 
-                {/* Forma de Pago */}
                 <div className="pt-4 space-y-2">
                   <label className="text-xs font-bold uppercase text-slate-600 block">
                     Forma de Pago en Caja
@@ -627,7 +601,7 @@ export default function MenuCliente() {
                 <button
                   onClick={enviarPedido}
                   disabled={cargando}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99] disabled:opacity-50"
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-5 rounded-xl text-sm flex items-center justify-center gap-2 shadow-xs transition active:scale-[0.99] disabled:opacity-50"
                 >
                   {cargando ? (
                     <span>Enviando orden a caja...</span>
@@ -643,13 +617,11 @@ export default function MenuCliente() {
           </div>
         )}
 
-        {/* =========================================
-            PASO 3: COMPROBANTE TIPO TICKET DE PAPEL
-            ========================================= */}
+        {/* Paso 3: Comprobante */}
         {paso === "comprobante" && pedidoGuardado && (
           <div className="flex-1 flex flex-col justify-between p-6 bg-slate-50">
             <div className="pt-6 flex flex-col items-center">
-              <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
+              <div className="h-14 w-14 rounded-full bg-slate-900 text-white flex items-center justify-center mb-3">
                 <Check className="h-7 w-7 stroke-[2.5]" />
               </div>
 
@@ -660,12 +632,11 @@ export default function MenuCliente() {
                 Acércate a la caja para abonar y retirar.
               </p>
 
-              {/* Tarjeta Recibo de Papel */}
-              <div className="w-full mt-6 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+              <div className="w-full mt-6 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
                 <div className="flex justify-between items-start border-b border-dashed border-slate-200 pb-3 mb-3">
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      NÚMERO DE ORDEN
+                      ORDEN
                     </span>
                     <span className="text-3xl font-black text-slate-900">
                       #{pedidoGuardado.id}
@@ -693,14 +664,14 @@ export default function MenuCliente() {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-xs uppercase font-bold text-slate-500">Total a Cobrar</span>
-                  <span className="text-2xl font-bold text-emerald-700">
+                  <span className="text-xs uppercase font-bold text-slate-500">Total</span>
+                  <span className="text-2xl font-bold text-slate-900">
                     ${Number(pedidoGuardado.total).toLocaleString("es-AR")}
                   </span>
                 </div>
 
                 <div className="mt-4 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 flex justify-between">
-                  <span>Pago:</span>
+                  <span>Pago en caja:</span>
                   <span className="font-bold uppercase text-slate-900">{pedidoGuardado.metodo_pago}</span>
                 </div>
               </div>
