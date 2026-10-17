@@ -184,6 +184,124 @@ app.post("/imprimir", async (req, res) => {
   });
 });
 
+function generarTextoCierre(cierre) {
+  const line = "--------------------------------";
+  const doubleLine = "================================";
+  const fecha = new Date().toLocaleString("es-DO", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+
+  let ticket = "\n" + doubleLine + "\n";
+  ticket += "     TEMPLO BÍBLICO LA VEGA     \n";
+  ticket += "      CIERRE DE CAJA / DÍA      \n";
+  ticket += doubleLine + "\n";
+  ticket += `EMISIÓN : ${fecha}\n`;
+  ticket += `FECHA   : ${cierre.fecha || "Hoy"}\n`;
+  ticket += line + "\n";
+  ticket += "RESUMEN DE INGRESOS (DOP):\n";
+  ticket += `TOTAL VENDIDO : RD$ ${Number(cierre.totalVendido || 0).toFixed(2)}\n`;
+  ticket += `• EFECTIVO    : RD$ ${Number(cierre.totalEfectivo || 0).toFixed(2)}\n`;
+  ticket += `• TRANSFERENCIA: RD$ ${Number(cierre.totalTransferencia || 0).toFixed(2)}\n`;
+  ticket += `• FIADO / DEUDA: RD$ ${Number(cierre.totalFiado || 0).toFixed(2)}\n`;
+  ticket += `ÓRDENES COBRADAS: ${cierre.ordenesCobradas || 0}\n`;
+  ticket += `ÓRDENES FIADAS  : ${cierre.ordenesFiadas || 0}\n`;
+
+  if (cierre.fiados && cierre.fiados.length > 0) {
+    ticket += line + "\n";
+    ticket += "CLIENTES QUE DEBEN FIADO:\n";
+    cierre.fiados.forEach((f, idx) => {
+      ticket += `${idx + 1}. ${(f.cliente || "Cliente").toUpperCase()}: RD$ ${Number(f.total).toFixed(2)}\n`;
+      if (f.notas) ticket += `   Nota: ${f.notas}\n`;
+    });
+  }
+
+  if (cierre.productosVendidos && cierre.productosVendidos.length > 0) {
+    ticket += line + "\n";
+    ticket += "PRODUCTOS MÁS VENDIDOS:\n";
+    cierre.productosVendidos.slice(0, 10).forEach((p) => {
+      const cant = `${p.cantidad}x`.padEnd(5, " ");
+      const nom = (p.nombre || "Prod").substring(0, 15).padEnd(15, " ");
+      const sub = `RD$${Number(p.subtotal).toFixed(2)}`.padStart(12, " ");
+      ticket += `${cant}${nom}${sub}\n`;
+    });
+  }
+
+  ticket += doubleLine + "\n";
+  ticket += "  REPORTE OFICIAL DE CIERRE Z   \n";
+  ticket += doubleLine + "\n";
+  ticket += "[CORTE DE PAPEL ESC/POS]\n";
+
+  return ticket;
+}
+
+app.post("/imprimir-cierre", async (req, res) => {
+  const cierre = req.body;
+  console.log(`\n========================================`);
+  console.log(`📊 RECIBIDA SOLICITUD DE CIERRE DE DÍA`);
+  console.log(`========================================`);
+
+  const ticketTexto = generarTextoCierre(cierre);
+  console.log(ticketTexto);
+
+  if (escpos && USB) {
+    try {
+      const device = new USB();
+      const printer = new escpos.Printer(device);
+
+      device.open((err) => {
+        if (err) {
+          console.warn("⚠️ No se pudo conectar al puerto USB:", err.message);
+          return res.json({ success: true, simulated: true, preview: ticketTexto });
+        }
+
+        printer
+          .font("a")
+          .align("ct")
+          .style("b")
+          .size(1, 1)
+          .text("TEMPLO BÍBLICO LA VEGA")
+          .text("CIERRE DE CAJA / DÍA")
+          .text("--------------------------------")
+          .align("lt")
+          .text(`Fecha: ${new Date().toLocaleString()}`)
+          .text(`Total Vendido: RD$ ${Number(cierre.totalVendido || 0).toFixed(2)}`)
+          .text(`Efectivo: RD$ ${Number(cierre.totalEfectivo || 0).toFixed(2)}`)
+          .text(`Transferencia: RD$ ${Number(cierre.totalTransferencia || 0).toFixed(2)}`)
+          .text(`Fiados: RD$ ${Number(cierre.totalFiado || 0).toFixed(2)}`)
+          .text("--------------------------------");
+
+        if (cierre.fiados && cierre.fiados.length > 0) {
+          printer.text("CLIENTES FIADOS:");
+          cierre.fiados.forEach((f) => {
+            printer.text(`• ${f.cliente}: RD$ ${Number(f.total).toFixed(2)}`);
+          });
+          printer.text("--------------------------------");
+        }
+
+        printer
+          .align("ct")
+          .text("REPORTE Z DE AUDITORIA")
+          .feed(2)
+          .cut()
+          .close();
+
+        return res.json({ success: true, hardwarePrinted: true, preview: ticketTexto });
+      });
+      return;
+    } catch (e) {
+      console.warn("⚠️ Error con impresora:", e.message);
+    }
+  }
+
+  res.json({
+    success: true,
+    simulated: true,
+    message: "Reporte de cierre procesado en emulación.",
+    preview: ticketTexto
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`\n======================================================`);
   console.log(`🚀 AGENTE DE IMPRESIÓN TB LA VEGA ACTIVO`);

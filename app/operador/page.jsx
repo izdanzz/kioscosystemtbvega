@@ -24,13 +24,19 @@ import {
   CreditCard, 
   FileText,
   AlertCircle,
-  Image as ImageIcon
+  Calendar,
+  Copy,
+  CheckCheck,
+  TrendingUp,
+  FileCheck,
+  UserCheck,
+  AlertTriangle
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { playChimeSound } from "@/lib/sound";
 
 export default function PanelOperador() {
-  const [pestanaActiva, setPestanaActiva] = useState("ordenes"); // 'ordenes' | 'inventario'
+  const [pestanaActiva, setPestanaActiva] = useState("ordenes"); // 'ordenes' | 'inventario' | 'cierre'
   const [pedidos, setPedidos] = useState([]);
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -47,14 +53,21 @@ export default function PanelOperador() {
   const [notaCobro, setNotaCobro] = useState("");
   const [cobrandoProceso, setCobrandoProceso] = useState(false);
 
-  // Ticket para imprimir en pantalla / térmico
+  // Tickets imprimibles
   const [ticketParaImprimir, setTicketParaImprimir] = useState(null);
+  const [ticketCierreParaImprimir, setTicketCierreParaImprimir] = useState(null);
 
   // Estados para Inventario
   const [busquedaInv, setBusquedaInv] = useState("");
   const [categoriaFiltroInv, setCategoriaFiltroInv] = useState("todas");
   const [modalProducto, setModalProducto] = useState(null);
   const [guardandoProd, setGuardandoProd] = useState(false);
+
+  // Estados para Cierre del Día
+  const [fechaCierre, setFechaCierre] = useState(new Date().toLocaleDateString("en-CA"));
+  const [verTodosFiados, setVerTodosFiados] = useState(true);
+  const [copiadoToast, setCopiadoToast] = useState(false);
+  const [modalSaldarFiado, setModalSaldarFiado] = useState(null);
 
   // Helper de Formato Dominicano (DOP / RD$)
   const formatDOP = (monto) => {
@@ -85,7 +98,7 @@ export default function PanelOperador() {
     let canal = null;
     if (isSupabaseConfigured()) {
       canal = supabase
-        .channel("operador_realtime_tblavega_v5")
+        .channel("operador_realtime_tblavega_v6")
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "pedidos" },
@@ -150,7 +163,7 @@ export default function PanelOperador() {
         .from("pedidos")
         .select("*, detalle_pedido(*, productos(nombre))")
         .order("creado_en", { ascending: false })
-        .limit(60);
+        .limit(150);
 
       if (error) throw error;
       setPedidos(data || []);
@@ -287,6 +300,40 @@ export default function PanelOperador() {
     }
   };
 
+  const saldarDeudaFiado = async (pedidoId, metodoPagoNuevo = "efectivo") => {
+    try {
+      const fechaHoy = new Date().toLocaleDateString("es-DO");
+      const notaActual = modalSaldarFiado?.notas || "";
+      const notaActualizada = notaActual ? `${notaActual} [Saldado el ${fechaHoy} en ${metodoPagoNuevo}]` : `Fiado saldado el ${fechaHoy} en ${metodoPagoNuevo}`;
+
+      if (isSupabaseConfigured()) {
+        const { error } = await supabase
+          .from("pedidos")
+          .update({
+            estado: "cobrado",
+            metodo_pago: metodoPagoNuevo,
+            notas: notaActualizada,
+            actualizado_en: new Date().toISOString()
+          })
+          .eq("id", pedidoId);
+
+        if (error) throw error;
+      }
+
+      setPedidos((prev) =>
+        prev.map((p) =>
+          p.id === pedidoId
+            ? { ...p, estado: "cobrado", metodo_pago: metodoPagoNuevo, notas: notaActualizada }
+            : p
+        )
+      );
+
+      setModalSaldarFiado(null);
+    } catch (e) {
+      alert("Error al saldar fiado: " + e.message);
+    }
+  };
+
   const imprimirEnNavegador = () => {
     if (typeof window !== "undefined") {
       window.print();
@@ -388,10 +435,132 @@ export default function PanelOperador() {
     }
   };
 
-  // Métricas
+  // =========================================
+  // CÁLCULOS DINÁMICOS PARA "TERMINÓ EL DÍA"
+  // =========================================
+  const pedidosDelDia = pedidos.filter((p) => {
+    if (!p.creado_en) return false;
+    const fechaP = new Date(p.creado_en).toLocaleDateString("en-CA");
+    return fechaP === fechaCierre;
+  });
+
+  const pedidosCobradosDia = pedidosDelDia.filter((p) => p.estado === "cobrado" && p.metodo_pago !== "fiado");
+  const pedidosFiadosDia = pedidosDelDia.filter((p) => p.metodo_pago === "fiado");
+  const pedidosCanceladosDia = pedidosDelDia.filter((p) => p.estado === "cancelado");
+
+  const totalEfectivoDia = pedidosDelDia
+    .filter((p) => p.metodo_pago === "efectivo" && p.estado === "cobrado")
+    .reduce((acc, p) => acc + Number(p.total), 0);
+
+  const totalTransferenciaDia = pedidosDelDia
+    .filter((p) => p.metodo_pago === "transferencia" && p.estado === "cobrado")
+    .reduce((acc, p) => acc + Number(p.total), 0);
+
+  const totalFiadoDia = pedidosDelDia
+    .filter((p) => p.metodo_pago === "fiado")
+    .reduce((acc, p) => acc + Number(p.total), 0);
+
+  const totalVentasDia = totalEfectivoDia + totalTransferenciaDia + totalFiadoDia;
+
+  // Lista de fiados
+  const fiadosHistoricos = pedidos.filter((p) => p.metodo_pago === "fiado");
+  const fiadosListaAMostrar = verTodosFiados ? fiadosHistoricos : pedidosFiadosDia;
+  const totalFiadosHistoricos = fiadosHistoricos.reduce((acc, p) => acc + Number(p.total), 0);
+
+  // Ranking de productos vendidos en el día
+  const productosVendidosMap = {};
+  pedidosDelDia
+    .filter((p) => p.estado !== "cancelado")
+    .forEach((p) => {
+      p.detalle_pedido?.forEach((item) => {
+        const prodId = item.producto_id || item.nombre || "prod";
+        const prodNombre = item.productos?.nombre || item.nombre || "Producto";
+        const cant = Number(item.cantidad) || 1;
+        const sub = Number(item.subtotal) || (Number(item.precio_unitario) * cant) || 0;
+
+        if (!productosVendidosMap[prodId]) {
+          productosVendidosMap[prodId] = {
+            id: prodId,
+            nombre: prodNombre,
+            cantidad: 0,
+            subtotal: 0
+          };
+        }
+        productosVendidosMap[prodId].cantidad += cant;
+        productosVendidosMap[prodId].subtotal += sub;
+      });
+    });
+
+  const rankingProductosDia = Object.values(productosVendidosMap).sort((a, b) => b.cantidad - a.cantidad);
+
+  // Acción: Imprimir Ticket Cierre de Día
+  const imprimirCierreDia = async () => {
+    const dataCierre = {
+      fecha: fechaCierre,
+      totalVendido: totalVentasDia,
+      totalEfectivo: totalEfectivoDia,
+      totalTransferencia: totalTransferenciaDia,
+      totalFiado: totalFiadoDia,
+      ordenesCobradas: pedidosCobradosDia.length,
+      ordenesFiadas: pedidosFiadosDia.length,
+      fiados: fiadosListaAMostrar.map((f) => ({
+        cliente: f.cliente_nombre,
+        total: f.total,
+        notas: f.notas
+      })),
+      productosVendidos: rankingProductosDia
+    };
+
+    setTicketCierreParaImprimir(dataCierre);
+
+    try {
+      await fetch("http://localhost:5000/imprimir-cierre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataCierre)
+      });
+    } catch (e) {
+      console.warn("Print server offline:", e);
+    }
+  };
+
+  // Acción: Copiar Resumen para WhatsApp
+  const copiarResumenWhatsApp = () => {
+    let msg = `📊 *CIERRE DEL DÍA - TEMPLO BÍBLICO LA VEGA*\n`;
+    msg += `📅 *Fecha:* ${fechaCierre}\n`;
+    msg += `--------------------------------------\n`;
+    msg += `💰 *TOTAL VENTAS:* ${formatDOP(totalVentasDia)}\n`;
+    msg += `💵 *Efectivo en Caja:* ${formatDOP(totalEfectivoDia)}\n`;
+    msg += `💳 *Transferencias:* ${formatDOP(totalTransferenciaDia)}\n`;
+    msg += `📝 *Fiados del Día:* ${formatDOP(totalFiadoDia)}\n`;
+    msg += `👥 *Pedidos Atendidos:* ${pedidosDelDia.length} (${pedidosCobradosDia.length} cobrados, ${pedidosFiadosDia.length} fiados)\n\n`;
+
+    if (fiadosListaAMostrar.length > 0) {
+      msg += `📌 *CLIENTES QUE DEBEN FIADO (${fiadosListaAMostrar.length}):*\n`;
+      fiadosListaAMostrar.forEach((f, i) => {
+        msg += `${i + 1}. *${f.cliente_nombre}:* ${formatDOP(f.total)}`;
+        if (f.notas) msg += ` _(${f.notas})_`;
+        msg += `\n`;
+      });
+      msg += `\n`;
+    }
+
+    if (rankingProductosDia.length > 0) {
+      msg += `🛒 *TOP PRODUCTOS VENDIDOS:*\n`;
+      rankingProductosDia.slice(0, 10).forEach((p) => {
+        msg += `• ${p.cantidad}x ${p.nombre} - ${formatDOP(p.subtotal)}\n`;
+      });
+    }
+
+    navigator.clipboard.writeText(msg);
+    setCopiadoToast(true);
+    setTimeout(() => setCopiadoToast(false), 3000);
+  };
+
+  // Cálculos pestaña 1 (Pedidos en Vivo)
   const pendientesCount = pedidos.filter((p) => p.estado === "pendiente").length;
-  const cobradosHoy = pedidos.filter((p) => p.estado === "cobrado");
-  const totalRecaudado = cobradosHoy.reduce((acc, p) => acc + Number(p.total), 0);
+  const cobradosHoyGeneral = pedidos.filter((p) => p.estado === "cobrado");
+  const totalRecaudadoGeneral = cobradosHoyGeneral.reduce((acc, p) => acc + Number(p.total), 0);
 
   const pedidosFiltrados = pedidos.filter((p) => {
     if (filtroEstado === "todos") return true;
@@ -408,7 +577,7 @@ export default function PanelOperador() {
     return coincideCat && coincideBusq;
   });
 
-  // Vuelto calculado para el modal
+  // Vuelto calculado para modal de cobro
   const vueltoCalculado = pedidoCobrando
     ? (parseFloat(montoEntregado) || 0) - Number(pedidoCobrando.total || 0)
     : 0;
@@ -437,39 +606,59 @@ export default function PanelOperador() {
                   Templo Bíblico La Vega
                 </h1>
                 <span className="bg-tb-gold text-tb-dark text-[10px] px-2 py-0.5 rounded-md font-bold font-sans">
-                  Mostrador
+                  Caja
                 </span>
                 <span className="bg-white/10 text-tb-gold text-[10px] px-2 py-0.5 rounded-md font-sans">
                   DOP (RD$)
                 </span>
               </div>
-              <p className="text-xs text-tb-sand/70 mt-0.5">Control de órdenes, cobros e inventario</p>
+              <p className="text-xs text-tb-sand/70 mt-0.5">Control de órdenes, cobros, fiados y cierre</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-white/10 p-1 rounded-2xl border border-white/10">
+          <div className="flex flex-wrap items-center gap-2">
+            
+            {/* Navegación por pestañas: Órdenes | Inventario | Terminó el Día */}
+            <div className="flex items-center gap-1 bg-white/10 p-1 rounded-2xl border border-white/10">
               <button
                 onClick={() => setPestanaActiva("ordenes")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-serif font-bold transition flex items-center gap-2 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-serif font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   pestanaActiva === "ordenes"
                     ? "bg-tb-gold text-tb-dark shadow-xs"
                     : "text-tb-sand hover:text-white"
                 }`}
               >
-                <Clock className="h-4 w-4" />
-                <span>Pedidos en Vivo ({pendientesCount})</span>
+                <Clock className="h-3.5 w-3.5" />
+                <span>Pedidos ({pendientesCount})</span>
               </button>
+
               <button
                 onClick={() => setPestanaActiva("inventario")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-serif font-bold transition flex items-center gap-2 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-serif font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   pestanaActiva === "inventario"
                     ? "bg-tb-gold text-tb-dark shadow-xs"
                     : "text-tb-sand hover:text-white"
                 }`}
               >
-                <Package className="h-4 w-4" />
-                <span>Inventario & Fotos</span>
+                <Package className="h-3.5 w-3.5" />
+                <span>Inventario</span>
+              </button>
+
+              <button
+                onClick={() => setPestanaActiva("cierre")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-serif font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  pestanaActiva === "cierre"
+                    ? "bg-tb-gold text-tb-dark shadow-xs"
+                    : "bg-white/15 text-white hover:bg-white/25 border border-tb-gold/40"
+                }`}
+              >
+                <FileCheck className="h-3.5 w-3.5 text-tb-gold" />
+                <span>Terminó el Día</span>
+                {fiadosHistoricos.length > 0 && (
+                  <span className="bg-purple-800 text-purple-200 text-[9px] px-1.5 py-0.2 rounded-full font-sans">
+                    {fiadosHistoricos.length}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -517,13 +706,21 @@ export default function PanelOperador() {
           </div>
         )}
 
+        {/* Toast de Confirmación al copiar para WhatsApp */}
+        {copiadoToast && (
+          <div className="fixed bottom-6 right-6 z-50 bg-tb-dark text-tb-gold px-4 py-3 rounded-2xl border border-tb-gold/30 shadow-2xl flex items-center gap-2 font-bold text-xs animate-in fade-in slide-in-from-bottom-2">
+            <CheckCheck className="h-4 w-4 text-emerald-400" />
+            <span>¡Resumen del día copiado para enviar por WhatsApp!</span>
+          </div>
+        )}
+
         {/* =========================================
             PESTAÑA 1: PEDIDOS EN VIVO
             ========================================= */}
         {pestanaActiva === "ordenes" && (
           <div className="space-y-6">
             
-            {/* Métricas en DOP con estilo cálido de tblavega.com */}
+            {/* Métricas en DOP */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs flex items-center justify-between">
                 <div>
@@ -545,7 +742,7 @@ export default function PanelOperador() {
                     Cobrado Hoy (DOP)
                   </span>
                   <span className="text-2xl font-black text-tb-emerald mt-0.5 block font-sans">
-                    {formatDOP(totalRecaudado)}
+                    {formatDOP(totalRecaudadoGeneral)}
                   </span>
                 </div>
                 <div className="h-11 w-11 rounded-2xl bg-[#FAF8F5] text-tb-emerald flex items-center justify-center font-bold border border-tb-sand">
@@ -559,7 +756,7 @@ export default function PanelOperador() {
                     Atendidos
                   </span>
                   <span className="text-2xl font-black text-tb-dark mt-0.5 block font-sans">
-                    {cobradosHoy.length} tickets
+                    {cobradosHoyGeneral.length} tickets
                   </span>
                 </div>
                 <div className="h-11 w-11 rounded-2xl bg-[#FAF8F5] text-tb-dark flex items-center justify-center font-bold border border-tb-sand">
@@ -589,7 +786,7 @@ export default function PanelOperador() {
                       : "bg-white border border-[#E2DFD8] text-tb-muted hover:bg-[#FAF8F5]"
                   }`}
                 >
-                  Cobrados ({cobradosHoy.length})
+                  Cobrados ({cobradosHoyGeneral.length})
                 </button>
                 <button
                   onClick={() => setFiltroEstado("todos")}
@@ -741,7 +938,7 @@ export default function PanelOperador() {
         )}
 
         {/* =========================================
-            PESTAÑA 2: GESTIÓN DE INVENTARIO (FOTOS, TÍTULOS Y PRECIOS)
+            PESTAÑA 2: GESTIÓN DE INVENTARIO
             ========================================= */}
         {pestanaActiva === "inventario" && (
           <div className="space-y-5">
@@ -909,10 +1106,539 @@ export default function PanelOperador() {
           </div>
         )}
 
+        {/* =========================================
+            PESTAÑA 3: TERMINÓ EL DÍA / CIERRE DE CAJA
+            ========================================= */}
+        {pestanaActiva === "cierre" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            
+            {/* Cabecera del Cierre con selector de fecha y botones de acción */}
+            <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-tb-terracotta flex items-center gap-1.5">
+                  <FileCheck className="h-4 w-4 text-tb-emerald" />
+                  Auditoría & Cierre de Cafetería
+                </span>
+                <h2 className="text-xl font-serif font-bold text-tb-dark mt-0.5">
+                  Resumen de Ventas del Día
+                </h2>
+                <p className="text-xs text-tb-muted">
+                  Balance de ingresos, cuentas por cobrar (fiado) y productos despachados
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                
+                {/* Selector de Fecha */}
+                <div className="flex items-center gap-1.5 bg-[#FAF8F5] border border-tb-sand p-1.5 rounded-2xl">
+                  <Calendar className="h-4 w-4 text-tb-terracotta ml-1" />
+                  <input
+                    type="date"
+                    value={fechaCierre}
+                    onChange={(e) => setFechaCierre(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-tb-dark outline-none cursor-pointer"
+                  />
+                  <button
+                    onClick={() => setFechaCierre(new Date().toLocaleDateString("en-CA"))}
+                    className="px-2 py-0.5 bg-white text-[10px] font-bold text-tb-dark rounded-lg border border-tb-sand hover:bg-tb-sand cursor-pointer"
+                    title="Ver hoy"
+                  >
+                    Hoy
+                  </button>
+                </div>
+
+                {/* Botón WhatsApp */}
+                <button
+                  onClick={copiarResumenWhatsApp}
+                  className="px-3.5 py-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-serif font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95"
+                  title="Copiar reporte formateado para WhatsApp"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Enviar por WhatsApp</span>
+                </button>
+
+                {/* Botón Imprimir Ticket Z */}
+                <button
+                  onClick={imprimirCierreDia}
+                  className="px-4 py-2.5 rounded-2xl bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95 border border-tb-gold/20"
+                  title="Imprimir ticket de cierre en impresora térmica"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Imprimir Cierre (Z)</span>
+                </button>
+
+              </div>
+            </div>
+
+            {/* Tarjetas de Balance Financiero del Día */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+              
+              <div className="bg-white border border-[#E2DFD8] rounded-3xl p-4.5 shadow-xs">
+                <span className="text-[10px] font-bold text-tb-terracotta uppercase tracking-wider block">
+                  Total General Vendido
+                </span>
+                <span className="text-2xl font-black text-tb-dark mt-1 block font-sans">
+                  {formatDOP(totalVentasDia)}
+                </span>
+                <span className="text-[11px] text-tb-muted mt-0.5 block">
+                  {pedidosDelDia.length} órdenes registradas
+                </span>
+              </div>
+
+              <div className="bg-white border border-emerald-200 bg-emerald-50/20 rounded-3xl p-4.5 shadow-xs">
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                  Efectivo en Caja
+                </span>
+                <span className="text-2xl font-black text-emerald-800 mt-1 block font-sans">
+                  {formatDOP(totalEfectivoDia)}
+                </span>
+                <span className="text-[11px] text-emerald-700 mt-0.5 block">
+                  Dinero físico a rendir
+                </span>
+              </div>
+
+              <div className="bg-white border border-blue-200 bg-blue-50/20 rounded-3xl p-4.5 shadow-xs">
+                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">
+                  Transferencias / QR
+                </span>
+                <span className="text-2xl font-black text-blue-900 mt-1 block font-sans">
+                  {formatDOP(totalTransferenciaDia)}
+                </span>
+                <span className="text-[11px] text-blue-700 mt-0.5 block">
+                  En cuenta bancaria
+                </span>
+              </div>
+
+              <div className="bg-white border border-purple-200 bg-purple-50/20 rounded-3xl p-4.5 shadow-xs">
+                <span className="text-[10px] font-bold text-purple-900 uppercase tracking-wider block">
+                  Fiados / Deudas
+                </span>
+                <span className="text-2xl font-black text-purple-900 mt-1 block font-sans">
+                  {formatDOP(totalFiadoDia)}
+                </span>
+                <span className="text-[11px] text-purple-700 mt-0.5 block">
+                  {pedidosFiadosDia.length} cuentas pendientes
+                </span>
+              </div>
+
+            </div>
+
+            {/* SECCIÓN 1: ¿QUIÉN DEBE FIADO? (CUENTAS POR COBRAR) */}
+            <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-tb-sand gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-9 w-9 rounded-xl bg-purple-100 text-purple-900 flex items-center justify-center font-bold">
+                    <UserCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-serif font-bold text-tb-dark">
+                      ¿Quién Debe Fiado? (Cuentas por Cobrar)
+                    </h3>
+                    <p className="text-xs text-tb-muted">
+                      Listado detallado de hermanos o clientes con consumo fiado
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-tb-muted font-medium">Ver:</span>
+                  <button
+                    onClick={() => setVerTodosFiados(false)}
+                    className={`px-3 py-1 rounded-xl font-bold transition cursor-pointer ${
+                      !verTodosFiados
+                        ? "bg-purple-900 text-white"
+                        : "bg-[#FAF8F5] text-tb-dark border border-tb-sand"
+                    }`}
+                  >
+                    Solo de este día ({pedidosFiadosDia.length})
+                  </button>
+                  <button
+                    onClick={() => setVerTodosFiados(true)}
+                    className={`px-3 py-1 rounded-xl font-bold transition cursor-pointer ${
+                      verTodosFiados
+                        ? "bg-purple-900 text-white"
+                        : "bg-[#FAF8F5] text-tb-dark border border-tb-sand"
+                    }`}
+                  >
+                    Todos los pendientes ({fiadosHistoricos.length})
+                  </button>
+                </div>
+              </div>
+
+              {fiadosListaAMostrar.length === 0 ? (
+                <div className="text-center py-8 text-tb-muted">
+                  <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-2" />
+                  <p className="font-serif font-bold text-tb-dark text-base">¡No hay deudas fiadas en este filtro!</p>
+                  <p className="text-xs text-tb-muted">Todas las ventas han sido cobradas o no hay fiados pendientes.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {fiadosListaAMostrar.map((fiado) => (
+                    <div
+                      key={fiado.id}
+                      className="bg-purple-50/40 border border-purple-200 rounded-2xl p-4 flex flex-col justify-between shadow-2xs hover:border-purple-400 transition"
+                    >
+                      <div>
+                        <div className="flex justify-between items-start mb-1.5">
+                          <div>
+                            <span className="text-[10px] font-mono font-bold text-purple-700">
+                              ORDEN #{fiado.id} • {new Date(fiado.creado_en).toLocaleDateString("es-DO")}
+                            </span>
+                            <h4 className="font-serif font-bold text-base text-tb-dark capitalize">
+                              {fiado.cliente_nombre}
+                            </h4>
+                          </div>
+                          <span className="bg-purple-200 text-purple-900 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                            DEBE FIADO
+                          </span>
+                        </div>
+
+                        {/* Desglose de lo que consumió */}
+                        <div className="space-y-1 py-1.5 text-xs text-slate-700 border-t border-purple-100 mt-1">
+                          {fiado.detalle_pedido?.map((item, idx) => (
+                            <div key={idx} className="flex justify-between text-[11px]">
+                              <span>{item.cantidad}x {item.productos?.nombre || item.nombre || "Producto"}</span>
+                              <span className="font-mono text-slate-500">{formatDOP(item.subtotal || item.cantidad * item.precio_unitario)}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Nota de la deuda */}
+                        {fiado.notas && (
+                          <div className="mt-2 p-2 rounded-lg bg-white border border-purple-200 text-xs text-purple-950 font-medium">
+                            <strong>Nota:</strong> {fiado.notas}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-3.5 pt-2.5 border-t border-purple-200 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-purple-700 block">Total a Pagar</span>
+                          <span className="text-lg font-black text-purple-950 font-sans">
+                            {formatDOP(fiado.total)}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => setModalSaldarFiado(fiado)}
+                          className="px-3 py-1.5 rounded-xl bg-purple-900 hover:bg-purple-950 text-white font-serif font-bold text-xs shadow-xs cursor-pointer transition active:scale-95"
+                        >
+                          Saldar Deuda
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {fiadosListaAMostrar.length > 0 && (
+                <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-tb-sand flex items-center justify-between text-xs text-purple-900 font-bold">
+                  <span>Total acumulado en cuentas fiadas:</span>
+                  <span className="text-base text-purple-950 font-black">{formatDOP(verTodosFiados ? totalFiadosHistoricos : totalFiadoDia)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* SECCIÓN 2: RESUMEN DE PRODUCTOS MÁS VENDIDOS (RANKING DEL DÍA) */}
+            <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-tb-sand">
+                <div className="h-9 w-9 rounded-xl bg-emerald-100 text-tb-emerald flex items-center justify-center font-bold">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-serif font-bold text-tb-dark">
+                    Productos Más Vendidos del Día
+                  </h3>
+                  <p className="text-xs text-tb-muted">
+                    Conteo de unidades despachadas para reposición de stock
+                  </p>
+                </div>
+              </div>
+
+              {rankingProductosDia.length === 0 ? (
+                <p className="text-center py-8 text-xs text-tb-muted">No hay registros de ventas en la fecha seleccionada.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#FAF8F5] border-b border-[#E2DFD8] text-tb-terracotta uppercase tracking-wider font-semibold">
+                      <tr>
+                        <th className="py-2.5 px-4">#</th>
+                        <th className="py-2.5 px-4">Producto</th>
+                        <th className="py-2.5 px-4 text-center">Unidades Vendidas</th>
+                        <th className="py-2.5 px-4 text-right">Total Generado (DOP)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {rankingProductosDia.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-[#FAF8F5]">
+                          <td className="py-3 px-4 font-bold text-tb-terracotta">{idx + 1}</td>
+                          <td className="py-3 px-4 font-serif font-bold text-tb-dark text-sm">{item.nombre}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="px-2.5 py-1 rounded-full bg-tb-sand text-tb-dark font-black font-mono">
+                              {item.cantidad} u.
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right font-black font-sans text-tb-dark text-sm">
+                            {formatDOP(item.subtotal)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* SECCIÓN 3: DETALLE DE A QUIÉN SE LE VENDIÓ (REGISTRO COMPLETO DEL DÍA) */}
+            <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-tb-sand">
+                <div className="h-9 w-9 rounded-xl bg-[#FAF8F5] text-tb-dark flex items-center justify-center font-bold border border-tb-sand">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-serif font-bold text-tb-dark">
+                    Registro de Todas las Ventas del Día
+                  </h3>
+                  <p className="text-xs text-tb-muted">
+                    Historial cronológico con nombre del cliente, productos y método de pago
+                  </p>
+                </div>
+              </div>
+
+              {pedidosDelDia.length === 0 ? (
+                <p className="text-center py-8 text-xs text-tb-muted">No hay pedidos en la fecha seleccionada.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#FAF8F5] border-b border-[#E2DFD8] text-tb-terracotta uppercase tracking-wider font-semibold">
+                      <tr>
+                        <th className="py-2.5 px-4">Hora</th>
+                        <th className="py-2.5 px-4">Cliente</th>
+                        <th className="py-2.5 px-4">Productos Despachados</th>
+                        <th className="py-2.5 px-4 text-center">Método de Pago</th>
+                        <th className="py-2.5 px-4 text-right">Total (DOP)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pedidosDelDia.map((p) => (
+                        <tr key={p.id} className="hover:bg-[#FAF8F5]">
+                          <td className="py-3 px-4 text-tb-muted font-mono whitespace-nowrap">
+                            {new Date(p.creado_en).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-serif font-bold text-tb-dark block capitalize text-sm">
+                              {p.cliente_nombre}
+                            </span>
+                            {p.notas && (
+                              <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded block mt-0.5 max-w-xs truncate">
+                                Nota: {p.notas}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="space-y-0.5 text-slate-700">
+                              {p.detalle_pedido?.map((item, i) => (
+                                <div key={i}>
+                                  <strong>{item.cantidad}x</strong> {item.productos?.nombre || item.nombre || "Producto"}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span
+                              className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg ${
+                                p.metodo_pago === "fiado"
+                                  ? "bg-purple-100 text-purple-900 border border-purple-200 font-black"
+                                  : p.metodo_pago === "efectivo"
+                                  ? "bg-emerald-100 text-emerald-900"
+                                  : "bg-blue-100 text-blue-900"
+                              }`}
+                            >
+                              {p.metodo_pago}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right font-black font-sans text-tb-dark text-sm">
+                            {formatDOP(p.total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
       </div>
 
       {/* =========================================
-          MODAL: COBRO CON FIADO, VUELTO Y NOTAS (BILLETES DOP)
+          MODAL: SALDAR DEUDA DE FIADO
+          ========================================= */}
+      {modalSaldarFiado && (
+        <div className="fixed inset-0 z-50 bg-tb-dark/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E2DFD8] rounded-3xl max-w-sm w-full p-6 shadow-2xl">
+            <div className="flex justify-between items-center pb-3 border-b border-tb-sand mb-4">
+              <h3 className="font-serif font-bold text-base text-tb-dark">
+                Saldar Deuda de Fiado
+              </h3>
+              <button
+                onClick={() => setModalSaldarFiado(null)}
+                className="text-slate-400 hover:text-tb-dark cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="bg-purple-50 p-4 rounded-2xl border border-purple-200 text-center mb-4">
+              <span className="text-[11px] font-bold text-purple-800 uppercase block">Cliente</span>
+              <h4 className="font-serif font-bold text-lg text-purple-950 capitalize mt-0.5">
+                {modalSaldarFiado.cliente_nombre}
+              </h4>
+              <span className="text-2xl font-black text-purple-950 font-sans block mt-1">
+                {formatDOP(modalSaldarFiado.total)}
+              </span>
+            </div>
+
+            <p className="text-xs text-tb-muted mb-3 text-center">
+              ¿Cómo está pagando el cliente para liquidar esta deuda?
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <button
+                onClick={() => saldarDeudaFiado(modalSaldarFiado.id, "efectivo")}
+                className="p-3 rounded-2xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-serif font-bold text-xs flex flex-col items-center gap-1 cursor-pointer transition active:scale-95"
+              >
+                <Banknote className="h-5 w-5 text-emerald-700" />
+                <span>Efectivo</span>
+              </button>
+              <button
+                onClick={() => saldarDeudaFiado(modalSaldarFiado.id, "transferencia")}
+                className="p-3 rounded-2xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-950 font-serif font-bold text-xs flex flex-col items-center gap-1 cursor-pointer transition active:scale-95"
+              >
+                <CreditCard className="h-5 w-5 text-blue-700" />
+                <span>Transferencia</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setModalSaldarFiado(null)}
+              className="w-full py-2.5 rounded-xl bg-[#FAF8F5] hover:bg-tb-sand text-tb-dark font-bold text-xs cursor-pointer border border-tb-sand"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          MODAL: TICKET DE CIERRE DEL DÍA (REPORTE Z)
+          ========================================= */}
+      {ticketCierreParaImprimir && (
+        <div className="fixed inset-0 z-50 bg-tb-dark/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E2DFD8] rounded-3xl max-w-sm w-full p-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-2.5 border-b border-tb-sand mb-3">
+              <span className="font-serif font-bold text-xs uppercase text-tb-dark flex items-center gap-1.5">
+                <Printer className="h-4 w-4 text-tb-terracotta" /> Reporte de Cierre del Día
+              </span>
+              <button
+                onClick={() => setTicketCierreParaImprimir(null)}
+                className="text-slate-400 hover:text-tb-dark cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div id="thermal-receipt" className="bg-[#FAF8F5] p-4 rounded-2xl border border-tb-sand font-mono text-xs text-tb-dark leading-snug space-y-2">
+              <div className="text-center font-bold">
+                <div className="text-sm font-serif">TEMPLO BÍBLICO LA VEGA</div>
+                <div className="text-[10px] text-tb-terracotta">CIERRE DE CAJA / DÍA (REPORTE Z)</div>
+              </div>
+              <div className="border-t border-dashed border-[#D5D0C6]"></div>
+              <div className="text-[11px] space-y-0.5">
+                <div>FECHA AUDITADA: {ticketCierreParaImprimir.fecha}</div>
+                <div>EMISIÓN TICKET : {new Date().toLocaleString()}</div>
+                <div>ÓRDENES TOTALES: {ticketCierreParaImprimir.ordenesCobradas + ticketCierreParaImprimir.ordenesFiadas}</div>
+              </div>
+              <div className="border-t border-dashed border-[#D5D0C6]"></div>
+              
+              <div className="space-y-1 text-[11px]">
+                <div className="flex justify-between font-bold text-sm">
+                  <span>TOTAL VENDIDO:</span>
+                  <span>{formatDOP(ticketCierreParaImprimir.totalVendido)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-800">
+                  <span>• EFECTIVO EN CAJA:</span>
+                  <span>{formatDOP(ticketCierreParaImprimir.totalEfectivo)}</span>
+                </div>
+                <div className="flex justify-between text-blue-800">
+                  <span>• TRANSFERENCIAS:</span>
+                  <span>{formatDOP(ticketCierreParaImprimir.totalTransferencia)}</span>
+                </div>
+                <div className="flex justify-between text-purple-900 font-bold">
+                  <span>• FIADO / DEUDAS:</span>
+                  <span>{formatDOP(ticketCierreParaImprimir.totalFiado)}</span>
+                </div>
+              </div>
+
+              {ticketCierreParaImprimir.fiados && ticketCierreParaImprimir.fiados.length > 0 && (
+                <>
+                  <div className="border-t border-dashed border-[#D5D0C6]"></div>
+                  <div className="text-[10px] font-bold text-purple-950 uppercase">CLIENTES QUE DEBEN FIADO:</div>
+                  <div className="space-y-1 text-[10px]">
+                    {ticketCierreParaImprimir.fiados.map((f, i) => (
+                      <div key={i} className="flex justify-between">
+                        <span>{i + 1}. {f.cliente}</span>
+                        <span className="font-bold">{formatDOP(f.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {ticketCierreParaImprimir.productosVendidos && ticketCierreParaImprimir.productosVendidos.length > 0 && (
+                <>
+                  <div className="border-t border-dashed border-[#D5D0C6]"></div>
+                  <div className="text-[10px] font-bold text-tb-dark uppercase">TOP PRODUCTOS DESPACHADOS:</div>
+                  <div className="space-y-1 text-[10px]">
+                    {ticketCierreParaImprimir.productosVendidos.slice(0, 8).map((p, i) => (
+                      <div key={i} className="flex justify-between">
+                        <span>{p.cantidad}x {p.nombre}</span>
+                        <span>{formatDOP(p.subtotal)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="border-t border-dashed border-[#D5D0C6]"></div>
+              <div className="text-center text-[10px] text-tb-muted pt-1">
+                COMPROBANTE OFICIAL DE RENDICIÓN DE CUENTAS
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={imprimirEnNavegador}
+                className="flex-1 bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer border border-tb-gold/20"
+              >
+                <Printer className="h-4 w-4" />
+                <span>Imprimir Ticket</span>
+              </button>
+              <button
+                onClick={() => setTicketCierreParaImprimir(null)}
+                className="px-4 py-2.5 bg-[#FAF8F5] hover:bg-tb-sand text-tb-dark font-bold rounded-xl text-xs cursor-pointer border border-tb-sand"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          MODAL: COBRO CON FIADO, VUELTO Y NOTAS (ORDEN INDIVIDUAL)
           ========================================= */}
       {pedidoCobrando && (
         <div className="fixed inset-0 z-50 bg-tb-dark/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1047,7 +1773,7 @@ export default function PanelOperador() {
                   <FileText className="h-4 w-4" /> Venta registrada como Fiado / Cuenta
                 </span>
                 <p className="text-[11px] text-purple-700">
-                  La orden se guardará con estado de cuenta pendiente para llevar el registro de deudas del hermano/a o cliente.
+                  La orden se guardará con estado de cuenta pendiente para llevar el registro de deudas en el Cierre del Día.
                 </p>
               </div>
             )}
@@ -1268,7 +1994,7 @@ export default function PanelOperador() {
       )}
 
       {/* =========================================
-          MODAL: TICKET DE CAJA IMPRIMIBLE EN DOP
+          MODAL: TICKET DE VENTA INDIVIDUAL IMPRIMIBLE EN DOP
           ========================================= */}
       {ticketParaImprimir && (
         <div className="fixed inset-0 z-50 bg-tb-dark/60 backdrop-blur-xs flex items-center justify-center p-4">
