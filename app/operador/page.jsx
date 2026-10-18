@@ -30,13 +30,22 @@ import {
   TrendingUp,
   FileCheck,
   UserCheck,
-  AlertTriangle
+  AlertTriangle,
+  History,
+  Lock,
+  Unlock,
+  Save,
+  Archive,
+  ShieldCheck,
+  Receipt,
+  FileSpreadsheet,
+  ChevronRight
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { playChimeSound } from "@/lib/sound";
 
 export default function PanelOperador() {
-  const [pestanaActiva, setPestanaActiva] = useState("ordenes"); // 'ordenes' | 'inventario' | 'cierre'
+  const [pestanaActiva, setPestanaActiva] = useState("ordenes"); // 'ordenes' | 'inventario' | 'cierre' | 'sesiones'
   const [pedidos, setPedidos] = useState([]);
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -63,11 +72,23 @@ export default function PanelOperador() {
   const [modalProducto, setModalProducto] = useState(null);
   const [guardandoProd, setGuardandoProd] = useState(false);
 
-  // Estados para Cierre del Día
+  // Estados para Resumen del Día
   const [fechaCierre, setFechaCierre] = useState(new Date().toLocaleDateString("en-CA"));
   const [verTodosFiados, setVerTodosFiados] = useState(true);
   const [copiadoToast, setCopiadoToast] = useState(false);
   const [modalSaldarFiado, setModalSaldarFiado] = useState(null);
+
+  // Estados para Apartado de Sesiones & Finalizar Sesión
+  const [sesiones, setSesiones] = useState([]);
+  const [cargandoSesiones, setCargandoSesiones] = useState(false);
+  const [modalFinalizarSesion, setModalFinalizarSesion] = useState(false);
+  const [cajeroNombre, setCajeroNombre] = useState("Cajero Principal");
+  const [efectivoContado, setEfectivoContado] = useState("");
+  const [notasSesion, setNotasSesion] = useState("");
+  const [imprimirAlFinalizar, setImprimirAlFinalizar] = useState(true);
+  const [guardandoSesion, setGuardandoSesion] = useState(false);
+  const [sesionDetalleModal, setSesionDetalleModal] = useState(null);
+  const [busquedaSesion, setBusquedaSesion] = useState("");
 
   // Helper de Formato Dominicano (DOP / RD$)
   const formatDOP = (monto) => {
@@ -92,13 +113,14 @@ export default function PanelOperador() {
     verificarPrintServer();
     cargarPedidos();
     cargarInventario();
+    cargarSesiones();
 
     const printInterval = setInterval(verificarPrintServer, 10000);
 
     let canal = null;
     if (isSupabaseConfigured()) {
       canal = supabase
-        .channel("operador_realtime_tblavega_v6")
+        .channel("operador_realtime_tblavega_v7")
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "pedidos" },
@@ -122,6 +144,13 @@ export default function PanelOperador() {
           { event: "*", schema: "public", table: "productos" },
           () => {
             cargarInventario();
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "sesiones" },
+          () => {
+            cargarSesiones();
           }
         )
         .subscribe();
@@ -163,7 +192,7 @@ export default function PanelOperador() {
         .from("pedidos")
         .select("*, detalle_pedido(*, productos(nombre))")
         .order("creado_en", { ascending: false })
-        .limit(150);
+        .limit(200);
 
       if (error) throw error;
       setPedidos(data || []);
@@ -192,6 +221,50 @@ export default function PanelOperador() {
     } catch (err) {
       console.error("Error al cargar inventario:", err);
     }
+  };
+
+  const cargarSesiones = async () => {
+    setCargandoSesiones(true);
+    let sesionesLocales = [];
+    try {
+      const guardadas = localStorage.getItem("tb_sesiones_caja");
+      if (guardadas) {
+        sesionesLocales = JSON.parse(guardadas);
+      }
+    } catch (e) {
+      console.warn("No se pudo leer sesiones de localStorage:", e);
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from("sesiones")
+          .select("*")
+          .order("cerrada_en", { ascending: false })
+          .limit(100);
+
+        if (!error && data) {
+          // Fusionar con localStorage deduplicando por código o id
+          const mapa = new Map();
+          sesionesLocales.forEach((s) => mapa.set(s.codigo || String(s.id), s));
+          data.forEach((s) => mapa.set(s.codigo || String(s.id), s));
+          const listaCombinada = Array.from(mapa.values()).sort(
+            (a, b) => new Date(b.cerrada_en || b.creado_en) - new Date(a.cerrada_en || a.creado_en)
+          );
+          setSesiones(listaCombinada);
+          try {
+            localStorage.setItem("tb_sesiones_caja", JSON.stringify(listaCombinada));
+          } catch (_) {}
+          setCargandoSesiones(false);
+          return;
+        }
+      } catch (err) {
+        console.warn("Tabla sesiones en Supabase no disponible o error:", err);
+      }
+    }
+
+    setSesiones(sesionesLocales);
+    setCargandoSesiones(false);
   };
 
   // ===============================
@@ -436,7 +509,7 @@ export default function PanelOperador() {
   };
 
   // =========================================
-  // CÁLCULOS DINÁMICOS PARA "TERMINÓ EL DÍA"
+  // CÁLCULOS DINÁMICOS PARA "RESUMEN DEL DÍA"
   // =========================================
   const pedidosDelDia = pedidos.filter((p) => {
     if (!p.creado_en) return false;
@@ -493,10 +566,11 @@ export default function PanelOperador() {
 
   const rankingProductosDia = Object.values(productosVendidosMap).sort((a, b) => b.cantidad - a.cantidad);
 
-  // Acción: Imprimir Ticket Cierre de Día
-  const imprimirCierreDia = async () => {
-    const dataCierre = {
+  // Acción: Imprimir Ticket Resumen del Día
+  const imprimirCierreDia = async (dataOverride = null) => {
+    const dataCierre = dataOverride || {
       fecha: fechaCierre,
+      cajero: cajeroNombre || "Operador Principal",
       totalVendido: totalVentasDia,
       totalEfectivo: totalEfectivoDia,
       totalTransferencia: totalTransferenciaDia,
@@ -526,7 +600,7 @@ export default function PanelOperador() {
 
   // Acción: Copiar Resumen para WhatsApp
   const copiarResumenWhatsApp = () => {
-    let msg = `📊 *CIERRE DEL DÍA - TEMPLO BÍBLICO LA VEGA*\n`;
+    let msg = `📊 *RESUMEN DEL DÍA - TEMPLO BÍBLICO LA VEGA*\n`;
     msg += `📅 *Fecha:* ${fechaCierre}\n`;
     msg += `--------------------------------------\n`;
     msg += `💰 *TOTAL VENTAS:* ${formatDOP(totalVentasDia)}\n`;
@@ -555,6 +629,219 @@ export default function PanelOperador() {
     navigator.clipboard.writeText(msg);
     setCopiadoToast(true);
     setTimeout(() => setCopiadoToast(false), 3000);
+  };
+
+  // =========================================
+  // GESTIÓN DE SESIONES & FINALIZAR SESIÓN
+  // =========================================
+  const finalizarSesionActual = async () => {
+    setGuardandoSesion(true);
+    try {
+      const ahora = new Date();
+      const horaStr = ahora.toTimeString().slice(0, 5).replace(":", "");
+      const codigoSesion = `SES-${fechaCierre.replace(/-/g, "")}-${horaStr}`;
+
+      const efectivoSistema = totalEfectivoDia;
+      const transferenciaSistema = totalTransferenciaDia;
+      const fiadoSistema = totalFiadoDia;
+      const totalGeneral = totalVentasDia;
+
+      const efContadoNum = efectivoContado !== "" ? parseFloat(efectivoContado) : efectivoSistema;
+      const diferenciaEf = efContadoNum - efectivoSistema;
+
+      // Calcular hora de apertura estimada
+      const ordenesOrdenadas = [...pedidosDelDia].sort((a, b) => new Date(a.creado_en) - new Date(b.creado_en));
+      const abiertaEn = ordenesOrdenadas[0]?.creado_en || new Date(new Date().setHours(8, 0, 0, 0)).toISOString();
+      const cerradaEn = ahora.toISOString();
+
+      const nuevaSesion = {
+        codigo: codigoSesion,
+        fecha: fechaCierre,
+        abierta_en: abiertaEn,
+        cerrada_en: cerradaEn,
+        cajero_nombre: cajeroNombre.trim() || "Cajero Principal",
+        total_vendido: totalGeneral,
+        total_efectivo: efectivoSistema,
+        total_transferencia: transferenciaSistema,
+        total_fiado: fiadoSistema,
+        efectivo_declarado: efContadoNum,
+        diferencia_efectivo: diferenciaEf,
+        total_pedidos: pedidosDelDia.length,
+        notas: notasSesion.trim() || null,
+        datos_resumen: {
+          fiados: fiadosListaAMostrar.map((f) => ({
+            id: f.id,
+            cliente: f.cliente_nombre,
+            total: f.total,
+            notas: f.notas || ""
+          })),
+          ranking_productos: rankingProductosDia,
+          pedidos: pedidosDelDia.map((p) => ({
+            id: p.id,
+            cliente: p.cliente_nombre,
+            total: p.total,
+            metodo_pago: p.metodo_pago,
+            hora: new Date(p.creado_en).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            notas: p.notas || ""
+          }))
+        }
+      };
+
+      // Guardar en Supabase si está disponible
+      if (isSupabaseConfigured()) {
+        try {
+          const { data, error } = await supabase.from("sesiones").insert([nuevaSesion]).select();
+          if (!error && data && data[0]) {
+            nuevaSesion.id = data[0].id;
+          }
+        } catch (e) {
+          console.warn("Fallo guardado en Supabase, persistiendo localmente:", e);
+        }
+      }
+
+      // Guardar en localStorage de forma resiliente
+      const listaActualizada = [nuevaSesion, ...sesiones.filter((s) => s.codigo !== nuevaSesion.codigo)];
+      setSesiones(listaActualizada);
+      try {
+        localStorage.setItem("tb_sesiones_caja", JSON.stringify(listaActualizada));
+      } catch (_) {}
+
+      // Si se activó imprimir ticket de cierre
+      if (imprimirAlFinalizar) {
+        await imprimirCierreDia({
+          codigo: codigoSesion,
+          cajero: nuevaSesion.cajero_nombre,
+          fecha: fechaCierre,
+          totalVendido: totalGeneral,
+          totalEfectivo: efectivoSistema,
+          totalTransferencia: transferenciaSistema,
+          totalFiado: fiadoSistema,
+          efectivoDeclarado: efContadoNum,
+          diferenciaEfectivo: diferenciaEf,
+          ordenesCobradas: pedidosCobradosDia.length,
+          ordenesFiadas: pedidosFiadosDia.length,
+          fiados: nuevaSesion.datos_resumen.fiados,
+          productosVendidos: rankingProductosDia
+        });
+      }
+
+      setModalFinalizarSesion(false);
+      setEfectivoContado("");
+      setNotasSesion("");
+
+      setNotificacionAlerta({
+        id: codigoSesion,
+        cliente: "Sesión Finalizada y Archivada",
+        total: totalGeneral
+      });
+
+      setPestanaActiva("sesiones");
+    } catch (err) {
+      alert("Error al finalizar sesión: " + err.message);
+    } finally {
+      setGuardandoSesion(false);
+    }
+  };
+
+  const reimprimirSesion = async (ses) => {
+    const dataCierre = {
+      codigo: ses.codigo || `SES-${ses.id}`,
+      cajero: ses.cajero_nombre || "Cajero Principal",
+      fecha: ses.fecha || (ses.cerrada_en ? new Date(ses.cerrada_en).toLocaleDateString("es-DO") : "Hoy"),
+      totalVendido: Number(ses.total_vendido || 0),
+      totalEfectivo: Number(ses.total_efectivo || 0),
+      totalTransferencia: Number(ses.total_transferencia || 0),
+      totalFiado: Number(ses.total_fiado || 0),
+      efectivoDeclarado: ses.efectivo_declarado,
+      diferenciaEfectivo: ses.diferencia_efectivo,
+      ordenesCobradas: ses.total_pedidos || 0,
+      ordenesFiadas: ses.datos_resumen?.fiados?.length || 0,
+      fiados: ses.datos_resumen?.fiados || [],
+      productosVendidos: ses.datos_resumen?.ranking_productos || []
+    };
+
+    setTicketCierreParaImprimir(dataCierre);
+
+    try {
+      await fetch("http://localhost:5000/imprimir-cierre", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataCierre)
+      });
+    } catch (e) {
+      console.warn("Print server offline:", e);
+    }
+  };
+
+  const copiarWhatsAppSesion = (ses) => {
+    let msg = `📊 *SESIÓN DE CAJA - TEMPLO BÍBLICO LA VEGA*\n`;
+    msg += `🔖 *Código:* ${ses.codigo || `SES-${ses.id}`}\n`;
+    msg += `👤 *Cajero:* ${ses.cajero_nombre || "Cajero Principal"}\n`;
+    msg += `📅 *Fecha:* ${ses.fecha}\n`;
+    if (ses.cerrada_en) {
+      msg += `⏰ *Cierre:* ${new Date(ses.cerrada_en).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}\n`;
+    }
+    msg += `--------------------------------------\n`;
+    msg += `💰 *TOTAL VENTAS:* ${formatDOP(ses.total_vendido)}\n`;
+    msg += `💵 *Efectivo Sistema:* ${formatDOP(ses.total_efectivo)}\n`;
+    if (ses.efectivo_declarado !== null && ses.efectivo_declarado !== undefined) {
+      msg += `🪙 *Efectivo en Caja:* ${formatDOP(ses.efectivo_declarado)}\n`;
+      const dif = Number(ses.diferencia_efectivo || 0);
+      if (dif === 0) msg += `✅ *Cuadre:* Efectivo cuadrado exacto\n`;
+      else if (dif > 0) msg += `⚠️ *Cuadre:* Sobrante de +${formatDOP(dif)}\n`;
+      else msg += `❌ *Cuadre:* Faltante de ${formatDOP(dif)}\n`;
+    }
+    msg += `💳 *Transferencias:* ${formatDOP(ses.total_transferencia)}\n`;
+    msg += `📝 *Fiados:* ${formatDOP(ses.total_fiado)}\n`;
+    msg += `👥 *Total Pedidos:* ${ses.total_pedidos}\n\n`;
+
+    if (ses.notas) {
+      msg += `📌 *Notas:* ${ses.notas}\n\n`;
+    }
+
+    if (ses.datos_resumen?.fiados && ses.datos_resumen.fiados.length > 0) {
+      msg += `📋 *CLIENTES QUE DEBEN FIADO (${ses.datos_resumen.fiados.length}):*\n`;
+      ses.datos_resumen.fiados.forEach((f, i) => {
+        msg += `${i + 1}. *${f.cliente}:* ${formatDOP(f.total)}`;
+        if (f.notas) msg += ` _(${f.notas})_`;
+        msg += `\n`;
+      });
+      msg += `\n`;
+    }
+
+    if (ses.datos_resumen?.ranking_productos && ses.datos_resumen.ranking_productos.length > 0) {
+      msg += `🛒 *TOP PRODUCTOS DESPACHADOS:*\n`;
+      ses.datos_resumen.ranking_productos.slice(0, 8).forEach((p) => {
+        msg += `• ${p.cantidad}x ${p.nombre} - ${formatDOP(p.subtotal)}\n`;
+      });
+    }
+
+    navigator.clipboard.writeText(msg);
+    setCopiadoToast(true);
+    setTimeout(() => setCopiadoToast(false), 3000);
+  };
+
+  const eliminarSesion = async (sesionAEliminar) => {
+    if (!confirm(`¿Deseas eliminar la sesión ${sesionAEliminar.codigo || sesionAEliminar.id}? Esta acción no se puede deshacer.`)) return;
+
+    try {
+      if (isSupabaseConfigured() && sesionAEliminar.id) {
+        await supabase.from("sesiones").delete().eq("id", sesionAEliminar.id);
+      }
+      const filtradas = sesiones.filter(
+        (s) => (s.id && s.id !== sesionAEliminar.id) || (s.codigo && s.codigo !== sesionAEliminar.codigo)
+      );
+      setSesiones(filtradas);
+      try {
+        localStorage.setItem("tb_sesiones_caja", JSON.stringify(filtradas));
+      } catch (_) {}
+
+      if (sesionDetalleModal?.codigo === sesionAEliminar.codigo || sesionDetalleModal?.id === sesionAEliminar.id) {
+        setSesionDetalleModal(null);
+      }
+    } catch (e) {
+      alert("Error al eliminar sesión: " + e.message);
+    }
   };
 
   // Cálculos pestaña 1 (Pedidos en Vivo)
@@ -612,13 +899,13 @@ export default function PanelOperador() {
                   DOP (RD$)
                 </span>
               </div>
-              <p className="text-xs text-tb-sand/70 mt-0.5">Control de órdenes, cobros, fiados y cierre</p>
+              <p className="text-xs text-tb-sand/70 mt-0.5">Control de órdenes, cobros, fiados y arqueo de sesiones</p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             
-            {/* Navegación por pestañas: Órdenes | Inventario | Terminó el Día */}
+            {/* Navegación por pestañas: Pedidos | Inventario | Resumen del Día | Sesiones */}
             <div className="flex items-center gap-1 bg-white/10 p-1 rounded-2xl border border-white/10">
               <button
                 onClick={() => setPestanaActiva("ordenes")}
@@ -646,17 +933,34 @@ export default function PanelOperador() {
 
               <button
                 onClick={() => setPestanaActiva("cierre")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-serif font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-serif font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   pestanaActiva === "cierre"
                     ? "bg-tb-gold text-tb-dark shadow-xs"
-                    : "bg-white/15 text-white hover:bg-white/25 border border-tb-gold/40"
+                    : "text-tb-sand hover:text-white"
                 }`}
               >
-                <FileCheck className="h-3.5 w-3.5 text-tb-gold" />
-                <span>Terminó el Día</span>
+                <FileCheck className="h-3.5 w-3.5" />
+                <span>Resumen del Día</span>
                 {fiadosHistoricos.length > 0 && (
-                  <span className="bg-purple-800 text-purple-200 text-[9px] px-1.5 py-0.2 rounded-full font-sans">
+                  <span className="bg-purple-800 text-purple-200 text-[9px] px-1.5 py-0.5 rounded-full font-sans">
                     {fiadosHistoricos.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => setPestanaActiva("sesiones")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-serif font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  pestanaActiva === "sesiones"
+                    ? "bg-tb-gold text-tb-dark shadow-xs"
+                    : "text-tb-sand hover:text-white"
+                }`}
+              >
+                <History className="h-3.5 w-3.5" />
+                <span>Sesiones</span>
+                {sesiones.length > 0 && (
+                  <span className="bg-emerald-800 text-emerald-200 text-[9px] px-1.5 py-0.5 rounded-full font-sans">
+                    {sesiones.length}
                   </span>
                 )}
               </button>
@@ -1107,20 +1411,21 @@ export default function PanelOperador() {
         )}
 
         {/* =========================================
-            PESTAÑA 3: TERMINÓ EL DÍA / CIERRE DE CAJA
+        {/* =========================================
+            PESTAÑA 3: RESUMEN DEL DÍA / ARQUEO DE CAJA
             ========================================= */}
         {pestanaActiva === "cierre" && (
           <div className="space-y-6 animate-in fade-in duration-200">
             
-            {/* Cabecera del Cierre con selector de fecha y botones de acción */}
+            {/* Cabecera del Resumen del Día con selector de fecha y botones de acción */}
             <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-tb-terracotta flex items-center gap-1.5">
                   <FileCheck className="h-4 w-4 text-tb-emerald" />
-                  Auditoría & Cierre de Cafetería
+                  Auditoría & Arqueo de Cafetería
                 </span>
                 <h2 className="text-xl font-serif font-bold text-tb-dark mt-0.5">
-                  Resumen de Ventas del Día
+                  Resumen del Día
                 </h2>
                 <p className="text-xs text-tb-muted">
                   Balance de ingresos, cuentas por cobrar (fiado) y productos despachados
@@ -1154,17 +1459,30 @@ export default function PanelOperador() {
                   title="Copiar reporte formateado para WhatsApp"
                 >
                   <Copy className="h-3.5 w-3.5" />
-                  <span>Enviar por WhatsApp</span>
+                  <span>Enviar WhatsApp</span>
                 </button>
 
                 {/* Botón Imprimir Ticket Z */}
                 <button
-                  onClick={imprimirCierreDia}
+                  onClick={() => imprimirCierreDia()}
                   className="px-4 py-2.5 rounded-2xl bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95 border border-tb-gold/20"
-                  title="Imprimir ticket de cierre en impresora térmica"
+                  title="Imprimir ticket de resumen del día en impresora térmica"
                 >
                   <Printer className="h-3.5 w-3.5" />
-                  <span>Imprimir Cierre (Z)</span>
+                  <span>Imprimir Ticket (Z)</span>
+                </button>
+
+                {/* Botón Finalizar Sesión */}
+                <button
+                  onClick={() => {
+                    setEfectivoContado(String(totalEfectivoDia || ""));
+                    setModalFinalizarSesion(true);
+                  }}
+                  className="px-4 py-2.5 rounded-2xl bg-tb-gold hover:bg-amber-400 text-tb-dark font-serif font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition active:scale-95 border border-tb-gold/40"
+                  title="Finalizar turno y guardar en el Apartado de Sesiones"
+                >
+                  <Lock className="h-3.5 w-3.5 text-tb-dark" />
+                  <span>Finalizar Sesión</span>
                 </button>
 
               </div>
@@ -1173,7 +1491,7 @@ export default function PanelOperador() {
             {/* Tarjetas de Balance Financiero del Día */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
               
-              <div className="bg-white border border-[#E2DFD8] rounded-3xl p-4.5 shadow-xs">
+              <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs">
                 <span className="text-[10px] font-bold text-tb-terracotta uppercase tracking-wider block">
                   Total General Vendido
                 </span>
@@ -1185,7 +1503,7 @@ export default function PanelOperador() {
                 </span>
               </div>
 
-              <div className="bg-white border border-emerald-200 bg-emerald-50/20 rounded-3xl p-4.5 shadow-xs">
+              <div className="bg-white border border-emerald-200 bg-emerald-50/20 rounded-3xl p-5 shadow-xs">
                 <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
                   Efectivo en Caja
                 </span>
@@ -1197,7 +1515,7 @@ export default function PanelOperador() {
                 </span>
               </div>
 
-              <div className="bg-white border border-blue-200 bg-blue-50/20 rounded-3xl p-4.5 shadow-xs">
+              <div className="bg-white border border-blue-200 bg-blue-50/20 rounded-3xl p-5 shadow-xs">
                 <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">
                   Transferencias / QR
                 </span>
@@ -1209,7 +1527,7 @@ export default function PanelOperador() {
                 </span>
               </div>
 
-              <div className="bg-white border border-purple-200 bg-purple-50/20 rounded-3xl p-4.5 shadow-xs">
+              <div className="bg-white border border-purple-200 bg-purple-50/20 rounded-3xl p-5 shadow-xs">
                 <span className="text-[10px] font-bold text-purple-900 uppercase tracking-wider block">
                   Fiados / Deudas
                 </span>
@@ -1358,8 +1676,8 @@ export default function PanelOperador() {
               {rankingProductosDia.length === 0 ? (
                 <p className="text-center py-8 text-xs text-tb-muted">No hay registros de ventas en la fecha seleccionada.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="overflow-x-auto rounded-2xl border border-[#E2DFD8]">
+                  <table className="w-full text-left text-xs min-w-[500px]">
                     <thead className="bg-[#FAF8F5] border-b border-[#E2DFD8] text-tb-terracotta uppercase tracking-wider font-semibold">
                       <tr>
                         <th className="py-2.5 px-4">#</th>
@@ -1408,8 +1726,8 @@ export default function PanelOperador() {
               {pedidosDelDia.length === 0 ? (
                 <p className="text-center py-8 text-xs text-tb-muted">No hay pedidos en la fecha seleccionada.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                <div className="overflow-x-auto rounded-2xl border border-[#E2DFD8]">
+                  <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-[#FAF8F5] border-b border-[#E2DFD8] text-tb-terracotta uppercase tracking-wider font-semibold">
                       <tr>
                         <th className="py-2.5 px-4">Hora</th>
@@ -1430,7 +1748,7 @@ export default function PanelOperador() {
                               {p.cliente_nombre}
                             </span>
                             {p.notas && (
-                              <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded block mt-0.5 max-w-xs truncate">
+                              <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded block mt-0.5 max-w-xs truncate">
                                 Nota: {p.notas}
                               </span>
                             )}
@@ -1467,6 +1785,287 @@ export default function PanelOperador() {
                 </div>
               )}
             </div>
+
+          </div>
+        )}
+
+        {/* =========================================
+            PESTAÑA 4: APARTADO DE SESIONES GUARDADAS
+            ========================================= */}
+        {pestanaActiva === "sesiones" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            
+            {/* Cabecera del Apartado de Sesiones */}
+            <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-tb-terracotta flex items-center gap-1.5">
+                  <Archive className="h-4 w-4 text-tb-emerald" />
+                  Archivo Histórico de Sesiones
+                </span>
+                <h2 className="text-xl font-serif font-bold text-tb-dark mt-0.5">
+                  Apartado de Sesiones de Caja
+                </h2>
+                <p className="text-xs text-tb-muted">
+                  Registro permanente de turnos finalizados, arqueos de gaveta y comprobantes Z
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Buscador de Sesiones */}
+                <div className="relative">
+                  <Search className="h-4 w-4 text-tb-muted absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por código, cajero o fecha..."
+                    value={busquedaSesion}
+                    onChange={(e) => setBusquedaSesion(e.target.value)}
+                    className="pl-9 pr-3 py-2 bg-[#FAF8F5] border border-tb-sand rounded-2xl text-xs text-tb-dark outline-none focus:bg-white focus:border-tb-dark w-48 sm:w-64"
+                  />
+                  {busquedaSesion && (
+                    <button
+                      onClick={() => setBusquedaSesion("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-tb-dark"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={cargarSesiones}
+                  className="p-2.5 rounded-2xl bg-white border border-[#E2DFD8] hover:bg-[#FAF8F5] text-tb-dark transition cursor-pointer shadow-2xs"
+                  title="Actualizar sesiones guardadas"
+                >
+                  <RefreshCw className={`h-4 w-4 ${cargandoSesiones ? "animate-spin text-tb-emerald" : ""}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Métricas Acumuladas de Sesiones Guardadas */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-tb-terracotta uppercase tracking-wider block">
+                    Sesiones Finalizadas
+                  </span>
+                  <span className="text-2xl font-black text-tb-dark mt-0.5 block font-sans">
+                    {sesiones.length} turnos
+                  </span>
+                  <span className="text-[11px] text-tb-muted mt-0.5 block">
+                    Archivados con balance Z
+                  </span>
+                </div>
+                <div className="h-11 w-11 rounded-2xl bg-[#FAF8F5] text-tb-emerald flex items-center justify-center font-bold border border-tb-sand">
+                  <Receipt className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-tb-terracotta uppercase tracking-wider block">
+                    Total Histórico Vendido
+                  </span>
+                  <span className="text-2xl font-black text-tb-emerald mt-0.5 block font-sans">
+                    {formatDOP(sesiones.reduce((acc, s) => acc + Number(s.total_vendido || 0), 0))}
+                  </span>
+                  <span className="text-[11px] text-tb-muted mt-0.5 block">
+                    Ventas consolidadas en DOP
+                  </span>
+                </div>
+                <div className="h-11 w-11 rounded-2xl bg-[#FAF8F5] text-tb-dark flex items-center justify-center font-bold border border-tb-sand">
+                  <DollarSign className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-tb-terracotta uppercase tracking-wider block">
+                    Efectivo Auditado
+                  </span>
+                  <span className="text-2xl font-black text-emerald-800 mt-0.5 block font-sans">
+                    {formatDOP(sesiones.reduce((acc, s) => acc + Number(s.efectivo_declarado || s.total_efectivo || 0), 0))}
+                  </span>
+                  <span className="text-[11px] text-tb-muted mt-0.5 block">
+                    Dinero físico rendido
+                  </span>
+                </div>
+                <div className="h-11 w-11 rounded-2xl bg-[#FAF8F5] text-emerald-800 flex items-center justify-center font-bold border border-tb-sand">
+                  <Banknote className="h-5 w-5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Listado de Sesiones Guardadas */}
+            {sesiones.length === 0 ? (
+              <div className="py-16 text-center bg-white border border-[#E2DFD8] rounded-3xl text-tb-muted p-6 space-y-3">
+                <Archive className="h-12 w-12 mx-auto stroke-1 text-tb-sand" />
+                <h3 className="font-serif font-bold text-tb-dark text-lg">No hay sesiones guardadas todavía</h3>
+                <p className="text-xs text-tb-muted max-w-md mx-auto">
+                  Cuando finalices la jornada en la pestaña <strong>"Resumen del Día"</strong> y hagas clic en <strong>"Finalizar Sesión"</strong>, el arqueo de caja se archivará aquí automáticamente.
+                </p>
+                <button
+                  onClick={() => setPestanaActiva("cierre")}
+                  className="mt-2 px-4 py-2 bg-tb-dark hover:bg-tb-emerald text-tb-gold text-xs font-serif font-bold rounded-xl cursor-pointer transition shadow-xs"
+                >
+                  Ir al Resumen del Día
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {sesiones
+                  .filter((s) => {
+                    if (!busquedaSesion.trim()) return true;
+                    const q = busquedaSesion.toLowerCase();
+                    return (
+                      (s.codigo && s.codigo.toLowerCase().includes(q)) ||
+                      (s.cajero_nombre && s.cajero_nombre.toLowerCase().includes(q)) ||
+                      (s.fecha && s.fecha.includes(q)) ||
+                      (s.notas && s.notas.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((ses) => {
+                    const dif = Number(ses.diferencia_efectivo || 0);
+                    const tieneCuadre = ses.efectivo_declarado !== null && ses.efectivo_declarado !== undefined;
+
+                    return (
+                      <div
+                        key={ses.codigo || ses.id}
+                        className="bg-white border border-[#E2DFD8] rounded-3xl p-5 shadow-xs hover:border-tb-dark/30 transition space-y-4"
+                      >
+                        {/* Cabecera de la tarjeta de sesión */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-tb-sand gap-2">
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-bold text-xs text-tb-terracotta bg-[#FAF8F5] border border-tb-sand px-2.5 py-1 rounded-xl">
+                              {ses.codigo || `SES-${ses.id}`}
+                            </span>
+                            <div>
+                              <h4 className="font-serif font-bold text-base text-tb-dark flex items-center gap-2">
+                                <span>{ses.fecha || new Date(ses.cerrada_en).toLocaleDateString("es-DO")}</span>
+                                <span className="text-xs font-sans text-tb-muted font-normal">
+                                  (Cerrada {new Date(ses.cerrada_en).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})
+                                </span>
+                              </h4>
+                              <p className="text-xs text-tb-muted">
+                                Cajero: <strong className="text-tb-dark capitalize font-serif">{ses.cajero_nombre || "Cajero Principal"}</strong> • {ses.total_pedidos || 0} pedidos procesados
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 flex items-center gap-1 shadow-2xs">
+                              <ShieldCheck className="h-3 w-3" />
+                              CERRADA & AUDITADA
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Desglose de montos */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-tb-sand">
+                            <span className="text-[10px] font-bold uppercase text-tb-terracotta block">Total Vendido</span>
+                            <span className="text-lg font-black text-tb-dark font-sans block mt-0.5">
+                              {formatDOP(ses.total_vendido)}
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-emerald-50/40 rounded-2xl border border-emerald-200">
+                            <span className="text-[10px] font-bold uppercase text-emerald-800 block">Efectivo Sistema</span>
+                            <span className="text-lg font-black text-emerald-900 font-sans block mt-0.5">
+                              {formatDOP(ses.total_efectivo)}
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-blue-50/40 rounded-2xl border border-blue-200">
+                            <span className="text-[10px] font-bold uppercase text-blue-800 block">Transferencias</span>
+                            <span className="text-lg font-black text-blue-900 font-sans block mt-0.5">
+                              {formatDOP(ses.total_transferencia)}
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-purple-50/40 rounded-2xl border border-purple-200">
+                            <span className="text-[10px] font-bold uppercase text-purple-900 block">Fiados en Turno</span>
+                            <span className="text-lg font-black text-purple-950 font-sans block mt-0.5">
+                              {formatDOP(ses.total_fiado)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Indicador de Arqueo / Cuadre Físico de Efectivo */}
+                        {tieneCuadre && (
+                          <div className="flex items-center justify-between p-3 rounded-2xl bg-[#FAF8F5] border border-tb-sand text-xs">
+                            <div className="flex items-center gap-2">
+                              {dif === 0 ? (
+                                <span className="flex items-center gap-1.5 text-emerald-800 font-bold">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                  Efectivo Físico Cuadrado Exacto ({formatDOP(ses.efectivo_declarado)})
+                                </span>
+                              ) : dif > 0 ? (
+                                <span className="flex items-center gap-1.5 text-amber-800 font-bold">
+                                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                  Sobrante en caja de +{formatDOP(dif)} (Efectivo Físico: {formatDOP(ses.efectivo_declarado)})
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-red-800 font-bold">
+                                  <AlertCircle className="h-4 w-4 text-red-600" />
+                                  Faltante en caja de {formatDOP(dif)} (Efectivo Físico: {formatDOP(ses.efectivo_declarado)})
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-tb-muted">Arqueo verificado</span>
+                          </div>
+                        )}
+
+                        {/* Notas si existen */}
+                        {ses.notas && (
+                          <div className="p-3 bg-white rounded-2xl border border-tb-sand text-xs text-tb-dark">
+                            <strong>Nota de turno:</strong> {ses.notas}
+                          </div>
+                        )}
+
+                        {/* Barra de Acciones de la Sesión */}
+                        <div className="flex flex-wrap items-center justify-between pt-2 border-t border-tb-sand gap-2">
+                          <button
+                            onClick={() => setSesionDetalleModal(ses)}
+                            className="px-3 py-1.5 rounded-xl bg-white border border-[#E2DFD8] hover:bg-[#FAF8F5] text-tb-dark font-serif font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                          >
+                            <Eye className="h-3.5 w-3.5 text-tb-emerald" />
+                            <span>Ver Detalle Completo</span>
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => copiarWhatsAppSesion(ses)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-serif font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95"
+                              title="Copiar resumen para WhatsApp"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              <span>WhatsApp</span>
+                            </button>
+
+                            <button
+                              onClick={() => reimprimirSesion(ses)}
+                              className="px-3 py-1.5 rounded-xl bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95 border border-tb-gold/20"
+                              title="Reimprimir ticket de cierre de esta sesión"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                              <span>Reimprimir Ticket (Z)</span>
+                            </button>
+
+                            <button
+                              onClick={() => eliminarSesion(ses)}
+                              className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer transition"
+                              title="Eliminar registro de sesión"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
 
           </div>
         )}
@@ -2079,6 +2678,348 @@ export default function PanelOperador() {
                 Cerrar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          MODAL: FINALIZAR SESIÓN DE CAJA
+          ========================================= */}
+      {modalFinalizarSesion && (
+        <div className="fixed inset-0 z-50 bg-tb-dark/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E2DFD8] rounded-3xl max-w-lg w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-3 border-b border-tb-sand mb-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-tb-terracotta flex items-center gap-1">
+                  <Lock className="h-3.5 w-3.5 text-tb-emerald" /> Arqueo Oficial de Turno
+                </span>
+                <h3 className="font-serif font-bold text-lg text-tb-dark">
+                  Finalizar Sesión de Caja
+                </h3>
+              </div>
+              <button
+                onClick={() => setModalFinalizarSesion(false)}
+                className="text-slate-400 hover:text-tb-dark cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              
+              {/* Información del Turno & Cajero */}
+              <div className="grid grid-cols-2 gap-3 bg-[#FAF8F5] p-3.5 rounded-2xl border border-tb-sand">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-tb-muted block">Fecha Auditada</span>
+                  <strong className="text-sm font-serif text-tb-dark">{fechaCierre}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-tb-muted block">Hora de Cierre</span>
+                  <strong className="text-sm font-mono text-tb-dark">
+                    {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Nombre del Cajero */}
+              <div>
+                <label className="block font-bold text-tb-dark mb-1">
+                  Nombre del Cajero / Operador Responsable *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej. Juan Pérez / Cajero 1"
+                  value={cajeroNombre}
+                  onChange={(e) => setCajeroNombre(e.target.value)}
+                  className="w-full bg-[#FAF8F5] border border-tb-sand rounded-xl p-2.5 text-xs text-tb-dark outline-none focus:bg-white focus:border-tb-dark font-medium"
+                />
+              </div>
+
+              {/* Resumen del Sistema */}
+              <div className="space-y-2">
+                <span className="font-bold text-tb-dark block uppercase text-[11px]">
+                  Resumen de Ventas Registradas en el Sistema
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="p-2.5 rounded-xl bg-white border border-tb-sand">
+                    <span className="text-[9px] uppercase font-bold text-tb-terracotta block">Total Ventas</span>
+                    <strong className="text-xs font-black text-tb-dark font-sans block">{formatDOP(totalVentasDia)}</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <span className="text-[9px] uppercase font-bold text-emerald-800 block">Efectivo Sistema</span>
+                    <strong className="text-xs font-black text-emerald-900 font-sans block">{formatDOP(totalEfectivoDia)}</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                    <span className="text-[9px] uppercase font-bold text-blue-800 block">Transferencias</span>
+                    <strong className="text-xs font-black text-blue-900 font-sans block">{formatDOP(totalTransferenciaDia)}</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200">
+                    <span className="text-[9px] uppercase font-bold text-purple-900 block">Fiados</span>
+                    <strong className="text-xs font-black text-purple-950 font-sans block">{formatDOP(totalFiadoDia)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Arqueo Físico de Efectivo */}
+              <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-tb-sand space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="font-bold text-tb-dark block text-xs">
+                    ¿Cuánto efectivo físico contaste en la caja? (RD$)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setEfectivoContado(String(totalEfectivoDia))}
+                    className="text-[10px] font-bold text-tb-emerald bg-white px-2 py-0.5 rounded-lg border border-tb-sand hover:bg-tb-sand cursor-pointer shadow-2xs"
+                  >
+                    Cuadre Exacto
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-tb-muted text-xs">RD$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder={String(totalEfectivoDia)}
+                    value={efectivoContado}
+                    onChange={(e) => setEfectivoContado(e.target.value)}
+                    className="w-full bg-white border border-[#D5D0C6] rounded-xl pl-10 pr-3 py-2 text-base font-bold text-tb-dark outline-none focus:border-tb-dark"
+                  />
+                </div>
+
+                {/* Resultado del Cuadre */}
+                {(() => {
+                  const contado = efectivoContado !== "" ? parseFloat(efectivoContado) : totalEfectivoDia;
+                  const dif = contado - totalEfectivoDia;
+
+                  if (dif === 0) {
+                    return (
+                      <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-xs flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                        <span>¡Efectivo cuadrado exactamente con el sistema!</span>
+                      </div>
+                    );
+                  } else if (dif > 0) {
+                    return (
+                      <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold text-xs flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                        <span>Sobrante de efectivo en gaveta: +{formatDOP(dif)}</span>
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-900 font-bold text-xs flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                        <span>Faltante de dinero en gaveta: {formatDOP(dif)}</span>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+
+              {/* Observaciones de la Sesión */}
+              <div>
+                <label className="block font-bold text-tb-dark mb-1">
+                  Notas u Observaciones del Turno (Opcional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ej. Cuadre sin novedades. El hermano Pedro prometió saldar el domingo."
+                  value={notasSesion}
+                  onChange={(e) => setNotasSesion(e.target.value)}
+                  className="w-full bg-[#FAF8F5] border border-tb-sand rounded-xl p-2.5 text-xs text-tb-dark outline-none focus:bg-white focus:border-tb-dark"
+                />
+              </div>
+
+              {/* Checkbox de Imprimir Ticket Oficial */}
+              <label className="flex items-center gap-2 text-xs text-tb-dark font-medium cursor-pointer p-2 bg-[#FAF8F5] rounded-xl border border-tb-sand">
+                <input
+                  type="checkbox"
+                  checked={imprimirAlFinalizar}
+                  onChange={(e) => setImprimirAlFinalizar(e.target.checked)}
+                  className="h-4 w-4 rounded accent-tb-dark cursor-pointer"
+                />
+                <span>Imprimir comprobante oficial de cierre (Z) en impresora térmica</span>
+              </label>
+
+              {/* Botones de Acción */}
+              <div className="flex gap-2 pt-2 border-t border-tb-sand">
+                <button
+                  type="button"
+                  onClick={() => setModalFinalizarSesion(false)}
+                  className="flex-1 py-3 rounded-xl bg-[#FAF8F5] hover:bg-tb-sand font-bold text-tb-dark text-xs cursor-pointer border border-tb-sand transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={finalizarSesionActual}
+                  disabled={guardandoSesion}
+                  className="flex-2 py-3 px-4 rounded-xl bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-black text-xs flex items-center justify-center gap-2 shadow-md disabled:opacity-50 cursor-pointer border border-tb-gold/20 transition active:scale-95"
+                >
+                  <Lock className="h-4 w-4 text-tb-gold" />
+                  <span>
+                    {guardandoSesion ? "Guardando y Archivando..." : "Confirmar y Finalizar Sesión"}
+                  </span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================
+          MODAL: DETALLE COMPLETO DE SESIÓN GUARDADA
+          ========================================= */}
+      {sesionDetalleModal && (
+        <div className="fixed inset-0 z-50 bg-tb-dark/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E2DFD8] rounded-3xl max-w-xl w-full p-6 shadow-2xl max-h-[92vh] overflow-y-auto space-y-4">
+            
+            {/* Cabecera */}
+            <div className="flex justify-between items-center pb-3 border-b border-tb-sand">
+              <div>
+                <span className="font-mono font-bold text-xs text-tb-terracotta block">
+                  {sesionDetalleModal.codigo || `SES-${sesionDetalleModal.id}`}
+                </span>
+                <h3 className="font-serif font-bold text-lg text-tb-dark">
+                  Detalle de Sesión Finalizada
+                </h3>
+                <p className="text-xs text-tb-muted">
+                  Fecha: {sesionDetalleModal.fecha} • Cajero: <strong className="text-tb-dark capitalize font-serif">{sesionDetalleModal.cajero_nombre}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => setSesionDetalleModal(null)}
+                className="text-slate-400 hover:text-tb-dark cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Balances Consolidados */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-tb-sand">
+                <span className="text-[10px] uppercase font-bold text-tb-terracotta block">Total Vendido</span>
+                <span className="text-base font-black text-tb-dark font-sans block mt-0.5">
+                  {formatDOP(sesionDetalleModal.total_vendido)}
+                </span>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200">
+                <span className="text-[10px] uppercase font-bold text-emerald-800 block">Efectivo Sistema</span>
+                <span className="text-base font-black text-emerald-900 font-sans block mt-0.5">
+                  {formatDOP(sesionDetalleModal.total_efectivo)}
+                </span>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-2xl border border-blue-200">
+                <span className="text-[10px] uppercase font-bold text-blue-800 block">Transferencias</span>
+                <span className="text-base font-black text-blue-900 font-sans block mt-0.5">
+                  {formatDOP(sesionDetalleModal.total_transferencia)}
+                </span>
+              </div>
+              <div className="p-3 bg-purple-50 rounded-2xl border border-purple-200">
+                <span className="text-[10px] uppercase font-bold text-purple-900 block">Fiados Turno</span>
+                <span className="text-base font-black text-purple-950 font-sans block mt-0.5">
+                  {formatDOP(sesionDetalleModal.total_fiado)}
+                </span>
+              </div>
+            </div>
+
+            {/* Arqueo físico de la sesión */}
+            {sesionDetalleModal.efectivo_declarado !== null && sesionDetalleModal.efectivo_declarado !== undefined && (
+              <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-tb-sand text-xs flex items-center justify-between">
+                <span>
+                  <strong>Efectivo Contado en Caja:</strong> {formatDOP(sesionDetalleModal.efectivo_declarado)}
+                </span>
+                <span className={`font-bold ${
+                  Number(sesionDetalleModal.diferencia_efectivo || 0) === 0
+                    ? "text-emerald-700"
+                    : Number(sesionDetalleModal.diferencia_efectivo || 0) > 0
+                    ? "text-amber-700"
+                    : "text-red-700"
+                }`}>
+                  {Number(sesionDetalleModal.diferencia_efectivo || 0) === 0
+                    ? "✅ Cuadrado Exacto"
+                    : Number(sesionDetalleModal.diferencia_efectivo || 0) > 0
+                    ? `⚠️ Sobrante: +${formatDOP(sesionDetalleModal.diferencia_efectivo)}`
+                    : `❌ Faltante: ${formatDOP(sesionDetalleModal.diferencia_efectivo)}`}
+                </span>
+              </div>
+            )}
+
+            {/* Notas si existen */}
+            {sesionDetalleModal.notas && (
+              <div className="p-3 bg-white rounded-2xl border border-tb-sand text-xs text-tb-dark">
+                <strong>Observaciones archivadas:</strong> {sesionDetalleModal.notas}
+              </div>
+            )}
+
+            {/* Fiados registrados en esa sesión */}
+            {sesionDetalleModal.datos_resumen?.fiados && sesionDetalleModal.datos_resumen.fiados.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-serif font-bold text-xs uppercase text-purple-950 flex items-center gap-1.5">
+                  <UserCheck className="h-4 w-4 text-purple-800" />
+                  Cuentas Fiadas en este Turno ({sesionDetalleModal.datos_resumen.fiados.length})
+                </h4>
+                <div className="divide-y divide-purple-100 rounded-2xl border border-purple-200 bg-purple-50/20 max-h-36 overflow-y-auto">
+                  {sesionDetalleModal.datos_resumen.fiados.map((f, i) => (
+                    <div key={i} className="p-2.5 flex justify-between items-center text-xs">
+                      <div>
+                        <strong className="capitalize text-tb-dark">{f.cliente}</strong>
+                        {f.notas && <span className="block text-[10px] text-purple-700">Nota: {f.notas}</span>}
+                      </div>
+                      <span className="font-mono font-black text-purple-950">{formatDOP(f.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Ranking de productos despachados en esa sesión */}
+            {sesionDetalleModal.datos_resumen?.ranking_productos && sesionDetalleModal.datos_resumen.ranking_productos.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-serif font-bold text-xs uppercase text-tb-dark flex items-center gap-1.5">
+                  <TrendingUp className="h-4 w-4 text-tb-emerald" />
+                  Top Productos Despachados
+                </h4>
+                <div className="divide-y divide-slate-100 rounded-2xl border border-[#E2DFD8] bg-[#FAF8F5] max-h-36 overflow-y-auto">
+                  {sesionDetalleModal.datos_resumen.ranking_productos.map((p, i) => (
+                    <div key={i} className="p-2 flex justify-between items-center text-xs">
+                      <span><strong>{p.cantidad}x</strong> {p.nombre}</span>
+                      <span className="font-mono font-bold text-tb-dark">{formatDOP(p.subtotal)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Botones de Acción del Modal */}
+            <div className="flex gap-2 pt-3 border-t border-tb-sand">
+              <button
+                onClick={() => copiarWhatsAppSesion(sesionDetalleModal)}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-serif font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                <span>WhatsApp</span>
+              </button>
+
+              <button
+                onClick={() => reimprimirSesion(sesionDetalleModal)}
+                className="flex-1 py-2.5 rounded-xl bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition active:scale-95 border border-tb-gold/20"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                <span>Reimprimir Ticket</span>
+              </button>
+
+              <button
+                onClick={() => setSesionDetalleModal(null)}
+                className="px-4 py-2.5 rounded-xl bg-[#FAF8F5] hover:bg-tb-sand text-tb-dark font-bold text-xs cursor-pointer border border-tb-sand"
+              >
+                Cerrar
+              </button>
+            </div>
+
           </div>
         </div>
       )}

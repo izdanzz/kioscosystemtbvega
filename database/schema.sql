@@ -117,10 +117,35 @@ EXECUTE FUNCTION reponer_stock_al_cancelar();
 -- POLÍTICAS DE ACCESO PÚBLICO (RLS) PARA KIOSCO
 -- Permite que los clientes consulten menú e ingresen pedidos
 -- ========================================================
+-- 5. TABLA DE SESIONES Y CIERRES DE CAJA
+CREATE TABLE IF NOT EXISTS sesiones (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(50) UNIQUE,
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+    abierta_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    cerrada_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    cajero_nombre VARCHAR(100) DEFAULT 'Operador',
+    total_vendido DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_efectivo DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_transferencia DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_fiado DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    efectivo_declarado DECIMAL(10,2) DEFAULT NULL,
+    diferencia_efectivo DECIMAL(10,2) DEFAULT NULL,
+    total_pedidos INT NOT NULL DEFAULT 0,
+    datos_resumen JSONB,
+    notas TEXT,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ========================================================
+-- POLÍTICAS DE ACCESO PÚBLICO (RLS) PARA KIOSCO
+-- Permite que los clientes consulten menú e ingresen pedidos
+-- ========================================================
 ALTER TABLE categorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedidos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE detalle_pedido ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sesiones ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para Categorías
 DROP POLICY IF EXISTS "Lectura pública de categorias" ON categorias;
@@ -148,6 +173,16 @@ CREATE POLICY "Permitir insertar detalle pedido" ON detalle_pedido FOR INSERT WI
 DROP POLICY IF EXISTS "Permitir leer detalle pedido" ON detalle_pedido;
 CREATE POLICY "Permitir leer detalle pedido" ON detalle_pedido FOR SELECT USING (true);
 
+-- Políticas para Sesiones
+DROP POLICY IF EXISTS "Permitir leer sesiones" ON sesiones;
+CREATE POLICY "Permitir leer sesiones" ON sesiones FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Permitir crear sesiones" ON sesiones;
+CREATE POLICY "Permitir crear sesiones" ON sesiones FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir actualizar sesiones" ON sesiones;
+CREATE POLICY "Permitir actualizar sesiones" ON sesiones FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Permitir eliminar sesiones" ON sesiones;
+CREATE POLICY "Permitir eliminar sesiones" ON sesiones FOR DELETE USING (true);
+
 -- ========================================================
 -- HABILITAR REALTIME EN SUPABASE
 -- ========================================================
@@ -161,6 +196,13 @@ END $$;
 DO $$
 BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE productos;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE sesiones;
 EXCEPTION
     WHEN duplicate_object THEN NULL;
 END $$;

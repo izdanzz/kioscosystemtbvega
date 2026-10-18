@@ -194,8 +194,10 @@ function generarTextoCierre(cierre) {
 
   let ticket = "\n" + doubleLine + "\n";
   ticket += "     TEMPLO BÍBLICO LA VEGA     \n";
-  ticket += "      CIERRE DE CAJA / DÍA      \n";
+  ticket += "       RESUMEN DEL DÍA          \n";
   ticket += doubleLine + "\n";
+  if (cierre.codigo) ticket += `SESIÓN  : ${cierre.codigo}\n`;
+  if (cierre.cajero) ticket += `CAJERO  : ${cierre.cajero}\n`;
   ticket += `EMISIÓN : ${fecha}\n`;
   ticket += `FECHA   : ${cierre.fecha || "Hoy"}\n`;
   ticket += line + "\n";
@@ -261,7 +263,7 @@ app.post("/imprimir-cierre", async (req, res) => {
           .style("b")
           .size(1, 1)
           .text("TEMPLO BÍBLICO LA VEGA")
-          .text("CIERRE DE CAJA / DÍA")
+          .text("RESUMEN DEL DÍA")
           .text("--------------------------------")
           .align("lt")
           .text(`Fecha: ${new Date().toLocaleString()}`)
