@@ -14,6 +14,7 @@ import {
   AlertCircle, 
   CreditCard,
   Banknote,
+  FileText,
   ChevronRight,
   Trash2,
   Package,
@@ -32,7 +33,7 @@ export default function MenuCliente() {
   const [carrito, setCarrito] = useState([]);
   const [mostrarCarritoModal, setMostrarCarritoModal] = useState(false);
   const [productoDetalle, setProductoDetalle] = useState(null); // Modal para ver foto, título y descripción completa
-  const [metodoPago, setMetodoPago] = useState("efectivo");
+  const [metodoPago, setMetodoPago] = useState("dinero");
   const [notas, setNotas] = useState("");
   const [cargando, setCargando] = useState(false);
   const [pedidoGuardado, setPedidoGuardado] = useState(null);
@@ -705,32 +706,38 @@ export default function MenuCliente() {
 
                 <div className="pt-4 space-y-2">
                   <label className="text-xs font-bold uppercase text-tb-terracotta block">
-                    Forma de Pago en Mostrador
+                    ¿Cómo pagarás tu pedido? *
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setMetodoPago("efectivo")}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        metodoPago === "efectivo"
-                          ? "bg-tb-dark border-tb-dark text-tb-gold"
+                      onClick={() => setMetodoPago("dinero")}
+                      className={`p-3 rounded-2xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 transition cursor-pointer ${
+                        metodoPago === "dinero"
+                          ? "bg-tb-dark border-tb-dark text-tb-gold shadow-xs"
                           : "bg-[#FAF8F5] border-tb-sand text-tb-muted hover:bg-tb-sand"
                       }`}
                     >
-                      <Banknote className="h-4 w-4" />
-                      <span>Efectivo (DOP)</span>
+                      <Banknote className="h-5 w-5 text-emerald-600" />
+                      <div className="text-center sm:text-left">
+                        <span className="block font-bold">Dinero</span>
+                        <span className="text-[10px] opacity-75 font-normal">Pagas en mostrador</span>
+                      </div>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setMetodoPago("transferencia")}
-                      className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
-                        metodoPago === "transferencia"
-                          ? "bg-tb-dark border-tb-dark text-tb-gold"
-                          : "bg-[#FAF8F5] border-tb-sand text-tb-muted hover:bg-tb-sand"
+                      onClick={() => setMetodoPago("fiado")}
+                      className={`p-3 rounded-2xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 transition cursor-pointer ${
+                        metodoPago === "fiado"
+                          ? "bg-purple-900 border-purple-900 text-white shadow-xs"
+                          : "bg-purple-50/50 border-purple-200 text-purple-900 hover:bg-purple-100/50"
                       }`}
                     >
-                      <CreditCard className="h-4 w-4" />
-                      <span>Transferencia</span>
+                      <FileText className="h-5 w-5 text-purple-600" />
+                      <div className="text-center sm:text-left">
+                        <span className="block font-bold">Fiado</span>
+                        <span className="text-[10px] opacity-75 font-normal">Anotar en cuenta</span>
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -834,9 +841,15 @@ export default function MenuCliente() {
                   </span>
                 </div>
 
-                <div className="mt-4 p-2.5 rounded-xl bg-[#FAF8F5] border border-tb-sand text-xs text-tb-dark flex justify-between">
-                  <span>Pago en mostrador:</span>
-                  <span className="font-bold uppercase text-tb-emerald">{pedidoGuardado.metodo_pago}</span>
+                <div className="mt-4 p-2.5 rounded-xl bg-[#FAF8F5] border border-tb-sand text-xs text-tb-dark flex justify-between items-center">
+                  <span>Método de pago seleccionado:</span>
+                  <span className={`font-bold uppercase px-2 py-0.5 rounded-md text-[11px] ${
+                    pedidoGuardado.metodo_pago === "fiado"
+                      ? "bg-purple-100 text-purple-900 border border-purple-200"
+                      : "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                  }`}>
+                    {pedidoGuardado.metodo_pago === "fiado" ? "Fiado / Cuenta" : "Dinero en Efectivo"}
+                  </span>
                 </div>
 
                 {pedidoGuardado.notas && (

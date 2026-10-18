@@ -21,7 +21,6 @@ import {
   Eye, 
   EyeOff, 
   Banknote, 
-  CreditCard, 
   FileText,
   AlertCircle,
   Calendar,
@@ -57,7 +56,7 @@ export default function PanelOperador() {
 
   // Modal de Cobro & Vuelto / Fiado
   const [pedidoCobrando, setPedidoCobrando] = useState(null);
-  const [metodoCobro, setMetodoCobro] = useState("efectivo"); // 'efectivo' | 'transferencia' | 'fiado'
+  const [metodoCobro, setMetodoCobro] = useState("dinero"); // 'dinero' | 'fiado'
   const [montoEntregado, setMontoEntregado] = useState("");
   const [notaCobro, setNotaCobro] = useState("");
   const [cobrandoProceso, setCobrandoProceso] = useState(false);
@@ -272,7 +271,9 @@ export default function PanelOperador() {
   // ===============================
   const abrirModalCobro = (pedido) => {
     setPedidoCobrando(pedido);
-    setMetodoCobro(pedido.metodo_pago || "efectivo");
+    // Identificar el método elegido previamente por el cliente
+    const metodoElegido = pedido.metodo_pago === "fiado" ? "fiado" : "dinero";
+    setMetodoCobro(metodoElegido);
     setMontoEntregado(String(pedido.total || ""));
     setNotaCobro(pedido.notas || "");
   };
@@ -282,6 +283,8 @@ export default function PanelOperador() {
     setCobrandoProceso(true);
 
     const total = Number(pedidoCobrando.total) || 0;
+    const esDinero = metodoCobro === "dinero" || metodoCobro === "efectivo";
+    const metodoFinal = metodoCobro === "fiado" ? "fiado" : "dinero";
     const entregado = parseFloat(montoEntregado) || total;
     const vuelto = Math.max(0, entregado - total);
 
@@ -291,7 +294,7 @@ export default function PanelOperador() {
           .from("pedidos")
           .update({
             estado: "cobrado",
-            metodo_pago: metodoCobro,
+            metodo_pago: metodoFinal,
             notas: notaCobro.trim() || null,
             actualizado_en: new Date().toISOString()
           })
@@ -303,7 +306,7 @@ export default function PanelOperador() {
       setPedidos((prev) =>
         prev.map((p) =>
           p.id === pedidoCobrando.id
-            ? { ...p, estado: "cobrado", metodo_pago: metodoCobro, notas: notaCobro }
+            ? { ...p, estado: "cobrado", metodo_pago: metodoFinal, notas: notaCobro }
             : p
         )
       );
@@ -312,9 +315,9 @@ export default function PanelOperador() {
         id: pedidoCobrando.id,
         cliente: pedidoCobrando.cliente_nombre,
         total: total,
-        metodo_pago: metodoCobro,
-        monto_recibido: metodoCobro === "efectivo" ? entregado : null,
-        vuelto: metodoCobro === "efectivo" ? vuelto : null,
+        metodo_pago: metodoFinal,
+        monto_recibido: esDinero ? entregado : null,
+        vuelto: esDinero ? vuelto : null,
         notas: notaCobro.trim(),
         fecha: new Date(pedidoCobrando.creado_en).toLocaleString(),
         items: pedidoCobrando.detalle_pedido?.map((d) => ({
@@ -373,11 +376,11 @@ export default function PanelOperador() {
     }
   };
 
-  const saldarDeudaFiado = async (pedidoId, metodoPagoNuevo = "efectivo") => {
+  const saldarDeudaFiado = async (pedidoId, metodoPagoNuevo = "dinero") => {
     try {
       const fechaHoy = new Date().toLocaleDateString("es-DO");
       const notaActual = modalSaldarFiado?.notas || "";
-      const notaActualizada = notaActual ? `${notaActual} [Saldado el ${fechaHoy} en ${metodoPagoNuevo}]` : `Fiado saldado el ${fechaHoy} en ${metodoPagoNuevo}`;
+      const notaActualizada = notaActual ? `${notaActual} [Saldado el ${fechaHoy} en dinero]` : `Fiado saldado el ${fechaHoy} en dinero`;
 
       if (isSupabaseConfigured()) {
         const { error } = await supabase
@@ -522,18 +525,14 @@ export default function PanelOperador() {
   const pedidosCanceladosDia = pedidosDelDia.filter((p) => p.estado === "cancelado");
 
   const totalEfectivoDia = pedidosDelDia
-    .filter((p) => p.metodo_pago === "efectivo" && p.estado === "cobrado")
-    .reduce((acc, p) => acc + Number(p.total), 0);
-
-  const totalTransferenciaDia = pedidosDelDia
-    .filter((p) => p.metodo_pago === "transferencia" && p.estado === "cobrado")
+    .filter((p) => (p.metodo_pago === "dinero" || p.metodo_pago === "efectivo" || p.metodo_pago === "transferencia") && p.estado === "cobrado")
     .reduce((acc, p) => acc + Number(p.total), 0);
 
   const totalFiadoDia = pedidosDelDia
     .filter((p) => p.metodo_pago === "fiado")
     .reduce((acc, p) => acc + Number(p.total), 0);
 
-  const totalVentasDia = totalEfectivoDia + totalTransferenciaDia + totalFiadoDia;
+  const totalVentasDia = totalEfectivoDia + totalFiadoDia;
 
   // Lista de fiados
   const fiadosHistoricos = pedidos.filter((p) => p.metodo_pago === "fiado");
@@ -573,7 +572,6 @@ export default function PanelOperador() {
       cajero: cajeroNombre || "Operador Principal",
       totalVendido: totalVentasDia,
       totalEfectivo: totalEfectivoDia,
-      totalTransferencia: totalTransferenciaDia,
       totalFiado: totalFiadoDia,
       ordenesCobradas: pedidosCobradosDia.length,
       ordenesFiadas: pedidosFiadosDia.length,
@@ -604,8 +602,7 @@ export default function PanelOperador() {
     msg += `📅 *Fecha:* ${fechaCierre}\n`;
     msg += `--------------------------------------\n`;
     msg += `💰 *TOTAL VENTAS:* ${formatDOP(totalVentasDia)}\n`;
-    msg += `💵 *Efectivo en Caja:* ${formatDOP(totalEfectivoDia)}\n`;
-    msg += `💳 *Transferencias:* ${formatDOP(totalTransferenciaDia)}\n`;
+    msg += `💵 *Dinero en Caja:* ${formatDOP(totalEfectivoDia)}\n`;
     msg += `📝 *Fiados del Día:* ${formatDOP(totalFiadoDia)}\n`;
     msg += `👥 *Pedidos Atendidos:* ${pedidosDelDia.length} (${pedidosCobradosDia.length} cobrados, ${pedidosFiadosDia.length} fiados)\n\n`;
 
@@ -642,7 +639,6 @@ export default function PanelOperador() {
       const codigoSesion = `SES-${fechaCierre.replace(/-/g, "")}-${horaStr}`;
 
       const efectivoSistema = totalEfectivoDia;
-      const transferenciaSistema = totalTransferenciaDia;
       const fiadoSistema = totalFiadoDia;
       const totalGeneral = totalVentasDia;
 
@@ -662,7 +658,7 @@ export default function PanelOperador() {
         cajero_nombre: cajeroNombre.trim() || "Cajero Principal",
         total_vendido: totalGeneral,
         total_efectivo: efectivoSistema,
-        total_transferencia: transferenciaSistema,
+        total_transferencia: 0,
         total_fiado: fiadoSistema,
         efectivo_declarado: efContadoNum,
         diferencia_efectivo: diferenciaEf,
@@ -714,7 +710,6 @@ export default function PanelOperador() {
           fecha: fechaCierre,
           totalVendido: totalGeneral,
           totalEfectivo: efectivoSistema,
-          totalTransferencia: transferenciaSistema,
           totalFiado: fiadoSistema,
           efectivoDeclarado: efContadoNum,
           diferenciaEfectivo: diferenciaEf,
@@ -750,7 +745,6 @@ export default function PanelOperador() {
       fecha: ses.fecha || (ses.cerrada_en ? new Date(ses.cerrada_en).toLocaleDateString("es-DO") : "Hoy"),
       totalVendido: Number(ses.total_vendido || 0),
       totalEfectivo: Number(ses.total_efectivo || 0),
-      totalTransferencia: Number(ses.total_transferencia || 0),
       totalFiado: Number(ses.total_fiado || 0),
       efectivoDeclarado: ses.efectivo_declarado,
       diferenciaEfectivo: ses.diferencia_efectivo,
@@ -783,15 +777,14 @@ export default function PanelOperador() {
     }
     msg += `--------------------------------------\n`;
     msg += `💰 *TOTAL VENTAS:* ${formatDOP(ses.total_vendido)}\n`;
-    msg += `💵 *Efectivo Sistema:* ${formatDOP(ses.total_efectivo)}\n`;
+    msg += `💵 *Dinero en Caja:* ${formatDOP(ses.total_efectivo)}\n`;
     if (ses.efectivo_declarado !== null && ses.efectivo_declarado !== undefined) {
-      msg += `🪙 *Efectivo en Caja:* ${formatDOP(ses.efectivo_declarado)}\n`;
+      msg += `🪙 *Efectivo Contado:* ${formatDOP(ses.efectivo_declarado)}\n`;
       const dif = Number(ses.diferencia_efectivo || 0);
       if (dif === 0) msg += `✅ *Cuadre:* Efectivo cuadrado exacto\n`;
       else if (dif > 0) msg += `⚠️ *Cuadre:* Sobrante de +${formatDOP(dif)}\n`;
       else msg += `❌ *Cuadre:* Faltante de ${formatDOP(dif)}\n`;
     }
-    msg += `💳 *Transferencias:* ${formatDOP(ses.total_transferencia)}\n`;
     msg += `📝 *Fiados:* ${formatDOP(ses.total_fiado)}\n`;
     msg += `👥 *Total Pedidos:* ${ses.total_pedidos}\n\n`;
 
@@ -1161,12 +1154,24 @@ export default function PanelOperador() {
                         </div>
 
                         <div className="flex items-center justify-between text-xs text-tb-muted pb-2 mb-2 border-b border-tb-sand">
-                          <span className={`font-semibold uppercase text-[10px] px-2 py-0.5 rounded-md ${
-                            esFiado ? "bg-purple-50 text-purple-700 font-bold" : "bg-[#FAF8F5] text-tb-dark"
+                          <span className={`font-bold text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1 ${
+                            esFiado
+                              ? "bg-purple-100 text-purple-950 border border-purple-200"
+                              : "bg-emerald-100 text-emerald-950 border border-emerald-200"
                           }`}>
-                            {pedido.metodo_pago}
+                            {esFiado ? (
+                              <>
+                                <FileText className="h-3 w-3 text-purple-700" />
+                                <span>CLIENTE PIDE: FIADO</span>
+                              </>
+                            ) : (
+                              <>
+                                <Banknote className="h-3 w-3 text-emerald-700" />
+                                <span>CLIENTE PAGA: DINERO</span>
+                              </>
+                            )}
                           </span>
-                          <span className="text-[11px]">
+                          <span className="text-[11px] font-mono text-tb-muted">
                             {new Date(pedido.creado_en).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
@@ -1207,10 +1212,16 @@ export default function PanelOperador() {
                           <div className="space-y-1.5">
                             <button
                               onClick={() => abrirModalCobro(pedido)}
-                              className="w-full bg-tb-dark hover:bg-tb-emerald text-tb-gold font-serif font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer border border-tb-gold/20"
+                              className={`w-full font-serif font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer border ${
+                                esFiado
+                                  ? "bg-purple-900 hover:bg-purple-950 text-white border-purple-800"
+                                  : "bg-tb-dark hover:bg-tb-emerald text-tb-gold border-tb-gold/20"
+                              }`}
                             >
                               <Printer className="h-4 w-4" />
-                              <span>COBRAR / FIADO / TICKET</span>
+                              <span>
+                                {esFiado ? "REGISTRAR FIADO E IMPRIMIR" : "COBRAR DINERO E IMPRIMIR"}
+                              </span>
                             </button>
                             <button
                               onClick={() => cancelarPedido(pedido.id)}
@@ -1515,15 +1526,15 @@ export default function PanelOperador() {
                 </span>
               </div>
 
-              <div className="bg-white border border-blue-200 bg-blue-50/20 rounded-3xl p-5 shadow-xs">
-                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">
-                  Transferencias / QR
+              <div className="bg-white border border-[#E2DFD8] bg-[#FAF8F5] rounded-3xl p-5 shadow-xs">
+                <span className="text-[10px] font-bold text-tb-terracotta uppercase tracking-wider block">
+                  Órdenes Cobradas
                 </span>
-                <span className="text-2xl font-black text-blue-900 mt-1 block font-sans">
-                  {formatDOP(totalTransferenciaDia)}
+                <span className="text-2xl font-black text-tb-dark mt-1 block font-sans">
+                  {pedidosCobradosDia.length}
                 </span>
-                <span className="text-[11px] text-blue-700 mt-0.5 block">
-                  En cuenta bancaria
+                <span className="text-[11px] text-tb-muted mt-0.5 block">
+                  Tickets despachados
                 </span>
               </div>
 
@@ -1764,15 +1775,13 @@ export default function PanelOperador() {
                           </td>
                           <td className="py-3 px-4 text-center">
                             <span
-                              className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-lg ${
+                              className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-lg ${
                                 p.metodo_pago === "fiado"
                                   ? "bg-purple-100 text-purple-900 border border-purple-200 font-black"
-                                  : p.metodo_pago === "efectivo"
-                                  ? "bg-emerald-100 text-emerald-900"
-                                  : "bg-blue-100 text-blue-900"
+                                  : "bg-emerald-100 text-emerald-900 border border-emerald-200 font-bold"
                               }`}
                             >
-                              {p.metodo_pago}
+                              {p.metodo_pago === "fiado" ? "Fiado" : "Dinero"}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right font-black font-sans text-tb-dark text-sm">
@@ -1975,10 +1984,10 @@ export default function PanelOperador() {
                             </span>
                           </div>
 
-                          <div className="p-3 bg-blue-50/40 rounded-2xl border border-blue-200">
-                            <span className="text-[10px] font-bold uppercase text-blue-800 block">Transferencias</span>
-                            <span className="text-lg font-black text-blue-900 font-sans block mt-0.5">
-                              {formatDOP(ses.total_transferencia)}
+                          <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-tb-sand">
+                            <span className="text-[10px] font-bold uppercase text-tb-terracotta block">Total Pedidos</span>
+                            <span className="text-lg font-black text-tb-dark font-sans block mt-0.5">
+                              {ses.total_pedidos || 0}
                             </span>
                           </div>
 
@@ -2100,24 +2109,13 @@ export default function PanelOperador() {
               </span>
             </div>
 
-            <p className="text-xs text-tb-muted mb-3 text-center">
-              ¿Cómo está pagando el cliente para liquidar esta deuda?
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="mb-4">
               <button
-                onClick={() => saldarDeudaFiado(modalSaldarFiado.id, "efectivo")}
-                className="p-3 rounded-2xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-serif font-bold text-xs flex flex-col items-center gap-1 cursor-pointer transition active:scale-95"
+                onClick={() => saldarDeudaFiado(modalSaldarFiado.id, "dinero")}
+                className="w-full p-3.5 rounded-2xl border border-emerald-400 bg-emerald-700 hover:bg-emerald-800 text-white font-serif font-bold text-sm flex items-center justify-center gap-2 cursor-pointer transition active:scale-95 shadow-xs"
               >
-                <Banknote className="h-5 w-5 text-emerald-700" />
-                <span>Efectivo</span>
-              </button>
-              <button
-                onClick={() => saldarDeudaFiado(modalSaldarFiado.id, "transferencia")}
-                className="p-3 rounded-2xl border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-950 font-serif font-bold text-xs flex flex-col items-center gap-1 cursor-pointer transition active:scale-95"
-              >
-                <CreditCard className="h-5 w-5 text-blue-700" />
-                <span>Transferencia</span>
+                <Banknote className="h-5 w-5 text-emerald-200" />
+                <span>Saldar Deuda con Dinero en Efectivo</span>
               </button>
             </div>
 
@@ -2170,10 +2168,6 @@ export default function PanelOperador() {
                 <div className="flex justify-between text-emerald-800">
                   <span>• EFECTIVO EN CAJA:</span>
                   <span>{formatDOP(ticketCierreParaImprimir.totalEfectivo)}</span>
-                </div>
-                <div className="flex justify-between text-blue-800">
-                  <span>• TRANSFERENCIAS:</span>
-                  <span>{formatDOP(ticketCierreParaImprimir.totalTransferencia)}</span>
                 </div>
                 <div className="flex justify-between text-purple-900 font-bold">
                   <span>• FIADO / DEUDAS:</span>
@@ -2267,53 +2261,70 @@ export default function PanelOperador() {
               </span>
             </div>
 
+            {/* Banner: Método elegido por el cliente */}
+            <div className="mb-4 p-3.5 rounded-2xl bg-[#FAF8F5] border border-tb-sand flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-tb-terracotta block">
+                  Elección del Cliente al Pedir
+                </span>
+                <span className="text-xs font-bold text-tb-dark flex items-center gap-1.5 mt-0.5">
+                  {pedidoCobrando.metodo_pago === "fiado" ? (
+                    <>
+                      <FileText className="h-4 w-4 text-purple-700 shrink-0" />
+                      <span className="text-purple-950 font-black uppercase">Solicitó Fiado / Cuenta</span>
+                    </>
+                  ) : (
+                    <>
+                      <Banknote className="h-4 w-4 text-emerald-700 shrink-0" />
+                      <span className="text-emerald-950 font-black uppercase">Solicitó Dinero en Efectivo</span>
+                    </>
+                  )}
+                </span>
+              </div>
+              <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide border ${
+                pedidoCobrando.metodo_pago === "fiado"
+                  ? "bg-purple-100 text-purple-950 border-purple-200"
+                  : "bg-emerald-100 text-emerald-950 border-emerald-200"
+              }`}>
+                {pedidoCobrando.metodo_pago === "fiado" ? "Fiado" : "Dinero"}
+              </span>
+            </div>
+
             {/* Selector de Método de Pago */}
             <div className="space-y-2 mb-4">
               <label className="block text-xs font-bold text-tb-dark uppercase">
-                Método de Pago
+                Método de Cobro en Caja
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setMetodoCobro("efectivo")}
-                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
-                    metodoCobro === "efectivo"
-                      ? "bg-tb-dark border-tb-dark text-tb-gold"
+                  onClick={() => setMetodoCobro("dinero")}
+                  className={`py-3 px-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition cursor-pointer ${
+                    metodoCobro === "dinero" || metodoCobro === "efectivo"
+                      ? "bg-tb-dark border-tb-dark text-tb-gold shadow-xs"
                       : "bg-[#FAF8F5] border-tb-sand text-tb-dark hover:bg-tb-sand"
                   }`}
                 >
-                  <Banknote className="h-4 w-4" />
-                  <span>Efectivo (DOP)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMetodoCobro("transferencia")}
-                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
-                    metodoCobro === "transferencia"
-                      ? "bg-tb-dark border-tb-dark text-tb-gold"
-                      : "bg-[#FAF8F5] border-tb-sand text-tb-dark hover:bg-tb-sand"
-                  }`}
-                >
-                  <CreditCard className="h-4 w-4" />
-                  <span>Transferencia</span>
+                  <Banknote className="h-5 w-5 text-emerald-500" />
+                  <span className="font-bold">Dinero (Efectivo DOP)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setMetodoCobro("fiado")}
-                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition cursor-pointer ${
+                  className={`py-3 px-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition cursor-pointer ${
                     metodoCobro === "fiado"
-                      ? "bg-purple-900 border-purple-900 text-white"
-                      : "bg-purple-50 border-purple-200 text-purple-900 hover:bg-purple-100"
+                      ? "bg-purple-900 border-purple-900 text-white shadow-xs"
+                      : "bg-purple-50/50 border-purple-200 text-purple-900 hover:bg-purple-100/50"
                   }`}
                 >
-                  <FileText className="h-4 w-4" />
-                  <span>Fiado / Cuenta</span>
+                  <FileText className="h-5 w-5 text-purple-600" />
+                  <span className="font-bold">Fiado / Cuenta</span>
                 </button>
               </div>
             </div>
 
-            {/* Si es EFECTIVO: Calculadora con Billetes Dominicanos (RD$ 50, 100, 200, 500, 1000, 2000) */}
-            {metodoCobro === "efectivo" && (
+            {/* Si es DINERO / EFECTIVO: Calculadora con Billetes Dominicanos (RD$ 50, 100, 200, 500, 1000, 2000) */}
+            {(metodoCobro === "dinero" || metodoCobro === "efectivo") && (
               <div className="space-y-3 p-3.5 bg-[#FAF8F5] border border-tb-sand rounded-2xl mb-4">
                 <div>
                   <label className="block text-xs font-bold text-tb-dark mb-1">
@@ -2621,7 +2632,7 @@ export default function PanelOperador() {
                 <div>FECHA : {ticketParaImprimir.fecha}</div>
                 <div>CLIENTE: {ticketParaImprimir.cliente?.toUpperCase()}</div>
                 <div>
-                  PAGO   : {ticketParaImprimir.metodo_pago === "fiado" ? "*** CUENTA / FIADO ***" : ticketParaImprimir.metodo_pago?.toUpperCase()}
+                  PAGO   : {ticketParaImprimir.metodo_pago === "fiado" ? "*** CUENTA / FIADO ***" : "DINERO EN EFECTIVO"}
                 </div>
               </div>
               <div className="border-t border-dashed border-[#D5D0C6]"></div>
@@ -2639,7 +2650,7 @@ export default function PanelOperador() {
                 <span>{formatDOP(ticketParaImprimir.total)}</span>
               </div>
 
-              {ticketParaImprimir.metodo_pago === "efectivo" && ticketParaImprimir.monto_recibido && (
+              {(ticketParaImprimir.metodo_pago === "dinero" || ticketParaImprimir.metodo_pago === "efectivo") && ticketParaImprimir.monto_recibido && (
                 <div className="text-[11px] pt-1 text-tb-muted border-t border-tb-sand">
                   <div className="flex justify-between">
                     <span>ABONO CON:</span>
@@ -2750,9 +2761,9 @@ export default function PanelOperador() {
                     <span className="text-[9px] uppercase font-bold text-emerald-800 block">Efectivo Sistema</span>
                     <strong className="text-xs font-black text-emerald-900 font-sans block">{formatDOP(totalEfectivoDia)}</strong>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
-                    <span className="text-[9px] uppercase font-bold text-blue-800 block">Transferencias</span>
-                    <strong className="text-xs font-black text-blue-900 font-sans block">{formatDOP(totalTransferenciaDia)}</strong>
+                  <div className="p-2.5 rounded-xl bg-white border border-tb-sand">
+                    <span className="text-[9px] uppercase font-bold text-tb-terracotta block">Total Pedidos</span>
+                    <strong className="text-xs font-black text-tb-dark font-sans block">{pedidosDelDia.length}</strong>
                   </div>
                   <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200">
                     <span className="text-[9px] uppercase font-bold text-purple-900 block">Fiados</span>
@@ -2912,10 +2923,10 @@ export default function PanelOperador() {
                   {formatDOP(sesionDetalleModal.total_efectivo)}
                 </span>
               </div>
-              <div className="p-3 bg-blue-50 rounded-2xl border border-blue-200">
-                <span className="text-[10px] uppercase font-bold text-blue-800 block">Transferencias</span>
-                <span className="text-base font-black text-blue-900 font-sans block mt-0.5">
-                  {formatDOP(sesionDetalleModal.total_transferencia)}
+              <div className="p-3 bg-[#FAF8F5] rounded-2xl border border-tb-sand">
+                <span className="text-[10px] uppercase font-bold text-tb-terracotta block">Total Pedidos</span>
+                <span className="text-base font-black text-tb-dark font-sans block mt-0.5">
+                  {sesionDetalleModal.total_pedidos || 0}
                 </span>
               </div>
               <div className="p-3 bg-purple-50 rounded-2xl border border-purple-200">

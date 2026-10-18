@@ -39,7 +39,7 @@ function generarTextoTicket(pedido) {
   if (pedido.metodo_pago === "fiado") {
     ticket += "PAGO   : *** CUENTA / FIADO ***\n";
   } else {
-    ticket += `PAGO   : ${(pedido.metodo_pago || "Efectivo").toUpperCase()}\n`;
+    ticket += "PAGO   : DINERO EN EFECTIVO\n";
   }
 
   ticket += line + "\n";
@@ -61,7 +61,7 @@ function generarTextoTicket(pedido) {
   ticket += line + "\n";
   ticket += `TOTAL A PAGAR: RD$ ${(Number(pedido.total) || 0).toFixed(2)}\n`;
 
-  if (pedido.metodo_pago === "efectivo" && pedido.monto_recibido) {
+  if ((pedido.metodo_pago === "dinero" || pedido.metodo_pago === "efectivo") && pedido.monto_recibido) {
     ticket += `ABONO CON    : RD$ ${Number(pedido.monto_recibido).toFixed(2)}\n`;
     ticket += `VUELTO       : RD$ ${Number(pedido.vuelto || 0).toFixed(2)}\n`;
   }
@@ -128,7 +128,7 @@ app.post("/imprimir", async (req, res) => {
           .text(`Orden #: ${pedidoId}`)
           .text(`Cliente: ${pedido.cliente_nombre || "Cliente"}`)
           .text(`Fecha: ${new Date().toLocaleString()}`)
-          .text(`Pago: ${(pedido.metodo_pago || "Efectivo").toUpperCase()}`)
+          .text(`Pago: ${pedido.metodo_pago === "fiado" ? "*** CUENTA / FIADO ***" : "DINERO EN EFECTIVO"}`)
           .text("--------------------------------");
 
         const items = pedido.items || pedido.detalle_pedido || [];
@@ -146,7 +146,7 @@ app.post("/imprimir", async (req, res) => {
           .size(1, 1)
           .text(`TOTAL: RD$ ${(Number(pedido.total) || 0).toFixed(2)}`);
 
-        if (pedido.metodo_pago === "efectivo" && pedido.monto_recibido) {
+        if ((pedido.metodo_pago === "dinero" || pedido.metodo_pago === "efectivo") && pedido.monto_recibido) {
           printer
             .align("rt")
             .text(`Abono: RD$ ${Number(pedido.monto_recibido).toFixed(2)}`)
@@ -203,9 +203,8 @@ function generarTextoCierre(cierre) {
   ticket += line + "\n";
   ticket += "RESUMEN DE INGRESOS (DOP):\n";
   ticket += `TOTAL VENDIDO : RD$ ${Number(cierre.totalVendido || 0).toFixed(2)}\n`;
-  ticket += `• EFECTIVO    : RD$ ${Number(cierre.totalEfectivo || 0).toFixed(2)}\n`;
-  ticket += `• TRANSFERENCIA: RD$ ${Number(cierre.totalTransferencia || 0).toFixed(2)}\n`;
-  ticket += `• FIADO / DEUDA: RD$ ${Number(cierre.totalFiado || 0).toFixed(2)}\n`;
+  ticket += `• DINERO / EFECTIVO : RD$ ${Number(cierre.totalEfectivo || 0).toFixed(2)}\n`;
+  ticket += `• FIADO / DEUDA     : RD$ ${Number(cierre.totalFiado || 0).toFixed(2)}\n`;
   ticket += `ÓRDENES COBRADAS: ${cierre.ordenesCobradas || 0}\n`;
   ticket += `ÓRDENES FIADAS  : ${cierre.ordenesFiadas || 0}\n`;
 
@@ -268,8 +267,7 @@ app.post("/imprimir-cierre", async (req, res) => {
           .align("lt")
           .text(`Fecha: ${new Date().toLocaleString()}`)
           .text(`Total Vendido: RD$ ${Number(cierre.totalVendido || 0).toFixed(2)}`)
-          .text(`Efectivo: RD$ ${Number(cierre.totalEfectivo || 0).toFixed(2)}`)
-          .text(`Transferencia: RD$ ${Number(cierre.totalTransferencia || 0).toFixed(2)}`)
+          .text(`Dinero en Caja: RD$ ${Number(cierre.totalEfectivo || 0).toFixed(2)}`)
           .text(`Fiados: RD$ ${Number(cierre.totalFiado || 0).toFixed(2)}`)
           .text("--------------------------------");
 
